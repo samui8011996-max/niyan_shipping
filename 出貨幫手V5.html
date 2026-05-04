@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出貨幫手 | 泥研製所</title>
+<link rel="shortcut icon" href="icon_result.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+  :root {
+    --bg: #0a0d14;
+    --bg-grad-1: #13081c;
+    --bg-grad-2: #0a0d14;
+    --bg-card: #151922;
+    --bg-card-2: #1a1f2b;
+    --bg-input: #20242f;
+    --border: #2a2f3c;
+    --text: #e8ecf3;
+    --text-dim: #8b91a1;
+    --text-mute: #5a6072;
+    --accent: #f778ba;
+    --accent-2: #a371f7;
+    --accent-3: #4DD0E1;
+    --accent-glow: rgba(247, 120, 186, 0.25);
+    --success: #3fb950;
+    --warn: #d29922;
+    --error: #f85149;
+
+    --cat-red-bg: #2a1114;     --cat-red-border: #C62828;
+    --cat-red-text: #FF8A8A;   --cat-red-num: #FF5252;
+    --cat-yellow-bg: #2a2410;  --cat-yellow-border: #FDD835;
+    --cat-yellow-text: #FFE58A;--cat-yellow-num: #FFD54F;
+    --cat-green-bg: #112a18;   --cat-green-border: #2E7D32;
+    --cat-green-text: #8FE49E; --cat-green-num: #66BB6A;
+    --cat-cyan-bg: #0f2a30;    --cat-cyan-border: #4DB6D3;
+    --cat-cyan-text: #9FD9E6;  --cat-cyan-num: #4DD0E1;
+    --cat-gray-bg: #20242f;    --cat-gray-border: #6E7580;
+    --cat-gray-text: #B4BCC7;  --cat-gray-num: #CFD8DC;
+    --cat-pink-bg: #2a1424;    --cat-pink-border: #ec4899;
+    --cat-pink-text: #f9a8d4;  --cat-pink-num: #f472b6;
+    --cat-orange-bg: #2a1a08;  --cat-orange-border: #FF8F00;
+    --cat-orange-text: #FFCC80;--cat-orange-num: #FFA726;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    min-height: 100vh;
+    font-family: 'Noto Sans TC', -apple-system, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse at top left, rgba(163, 113, 247, 0.15), transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(247, 120, 186, 0.12), transparent 50%),
+      linear-gradient(180deg, var(--bg-grad-1) 0%, var(--bg-grad-2) 100%);
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+  }
+
+  .container { max-width: 1040px; margin: 0 auto; }
+
+  .header { margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+  .title-wrap { flex: 1; min-width: 260px; }
+  .title {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .title::before {
+    content: '◆';
+    font-size: 26px;
+    color: var(--accent);
+    -webkit-text-fill-color: var(--accent);
+  }
+  .subtitle {
+    margin-top: 6px;
+    color: var(--text-dim);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+  .subtitle code {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    font-size: 12px;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+  .tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    background: var(--bg-input);
+    color: var(--accent);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .card-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .card-label .num {
+    display: inline-block;
+    background: var(--accent);
+    color: #0a0d14;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 18px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-right: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .file-row { display: flex; align-items: center; gap: 10px; }
+  .file-display {
+    flex: 1;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: border-color 0.15s;
+  }
+  .file-display.empty { color: var(--text-mute); }
+  .file-display.has-file {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .btn {
+    border: none;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .btn:disabled { cursor: not-allowed; opacity: 0.4; }
+
+  .btn-secondary {
+    background: var(--bg-input);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--bg-card-2);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #ff6bb5 100%);
+    color: #0a0d14;
+    padding: 13px 26px;
+    font-size: 15px;
+    font-weight: 700;
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px var(--accent-glow);
+  }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+  .btn-gsheet {
+    background: transparent;
+    color: var(--cat-cyan-num);
+    border: 1px solid var(--cat-cyan-border);
+    padding: 11px 18px;
+  }
+  .btn-gsheet:hover:not(:disabled) {
+    background: rgba(77, 208, 225, 0.08);
+    color: var(--text);
+  }
+
+  .btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--cat-red-num);
+    border: 1px solid var(--cat-red-border);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(198, 40, 40, 0.12);
+    color: var(--text);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  .settings-link {
+    background: none;
+    border: none;
+    color: var(--text-mute);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .settings-link:hover { color: var(--accent); background: var(--bg-card); }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .status {
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border-left: 3px solid var(--text-mute);
+    color: var(--text-dim);
+    margin-bottom: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+  }
+  .status.success { border-left-color: var(--success); color: var(--success); }
+  .status.warn    { border-left-color: var(--warn);    color: var(--warn); }
+  .status.error   { border-left-color: var(--error);   color: var(--error); }
+  .status.loading { border-left-color: var(--accent);  color: var(--accent); }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .stats-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 14px;
+    padding-left: 4px;
+    flex-wrap: wrap;
+  }
+  .stats-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-2);
+    letter-spacing: 0.02em;
+  }
+  .stats-hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .stats-hint.synced { color: var(--success); }
+
+  /* 大卡 (今日總訂單) */
+  .total-card {
+    background: linear-gradient(135deg, rgba(247, 120, 186, 0.08) 0%, rgba(163, 113, 247, 0.08) 100%);
+    border: 1px solid var(--accent);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .total-card .label {
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    font-weight: 500;
+  }
+  .total-card .num {
+    font-size: 48px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+    font-feature-settings: 'tnum';
+  }
+  .total-card .num small {
+    font-size: 16px;
+    color: var(--text-dim);
+    -webkit-text-fill-color: var(--text-dim);
+    margin-left: 6px;
+    font-weight: 400;
+  }
+  .total-card .refresh-info {
+    font-size: 11px;
+    color: var(--text-mute);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: right;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card.clickable { cursor: pointer; user-select: none; }
+  .stat-card.clickable:hover {
+    transform: translateY(-2px);
+    border-color: var(--stat-num-color, var(--accent));
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+  .stat-card.clickable:active { transform: translateY(0); }
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, var(--glow, transparent), transparent 60%);
+    pointer-events: none;
+    opacity: 0.5;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: var(--stat-label-color, var(--text-dim));
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    position: relative;
+    z-index: 1;
+  }
+  .stat-number {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--stat-num-color, var(--accent));
+    line-height: 1.1;
+    margin-top: 6px;
+    font-feature-settings: 'tnum';
+    position: relative;
+    z-index: 1;
+  }
+  .stat-unit {
+    font-size: 13px;
+    color: var(--stat-label-color, var(--text-dim));
+    margin-left: 4px;
+    font-weight: 400;
+  }
+  .stat-sub {
+    font-size: 11px;
+    color: var(--stat-label-color, var(--text-mute));
+    margin-top: 6px;
+    opacity: 0.85;
+    position: relative;
+    z-index: 1;
+    line-height: 1.6;
+  }
+  .stat-breakdown {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--stat-label-color, var(--text-dim));
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+  }
+  .stat-breakdown span {
+    padding: 2px 8px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 4px;
+  }
+
+  .stat-card.normal  { --glow: var(--accent-glow); }
+  .stat-card.red     { background: var(--cat-red-bg); border-color: var(--cat-red-border); --stat-label-color: var(--cat-red-text); --stat-num-color: var(--cat-red-num); --glow: rgba(198, 40, 40, 0.35); }
+  .stat-card.yellow  { background: var(--cat-yellow-bg); border-color: var(--cat-yellow-border); --stat-label-color: var(--cat-yellow-text); --stat-num-color: var(--cat-yellow-num); --glow: rgba(253, 216, 53, 0.3); }
+  .stat-card.green   { background: var(--cat-green-bg); border-color: var(--cat-green-border); --stat-label-color: var(--cat-green-text); --stat-num-color: var(--cat-green-num); --glow: rgba(46, 125, 50, 0.35); }
+  .stat-card.cyan    { background: var(--cat-cyan-bg); border-color: var(--cat-cyan-border); --stat-label-color: var(--cat-cyan-text); --stat-num-color: var(--cat-cyan-num); --glow: rgba(77, 208, 225, 0.35); }
+  .stat-card.gray    { background: var(--cat-gray-bg); border-color: var(--cat-gray-border); --stat-label-color: var(--cat-gray-text); --stat-num-color: var(--cat-gray-num); --glow: rgba(189, 189, 189, 0.2); }
+  .stat-card.pink    { background: var(--cat-pink-bg); border-color: var(--cat-pink-border); --stat-label-color: var(--cat-pink-text); --stat-num-color: var(--cat-pink-num); --glow: rgba(236, 72, 153, 0.3); }
+  .stat-card.orange  { background: var(--cat-orange-bg); border-color: var(--cat-orange-border); --stat-label-color: var(--cat-orange-text); --stat-num-color: var(--cat-orange-num); --glow: rgba(255, 143, 0, 0.35); }
+
+  .footer {
+    margin-top: 36px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-mute);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.08em;
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    overflow-y: auto;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 560px;
+    width: 100%;
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 6px; color: var(--accent); font-weight: 700; }
+  .modal p.hint { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.7; }
+  .modal p.hint code { background: var(--bg-input); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); }
+  .modal label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px; font-weight: 500; margin-top: 14px; }
+  .modal label:first-of-type { margin-top: 0; }
+  .modal input[type="text"],
+  .modal select,
+  .modal textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .modal textarea { font-family: inherit; min-height: 70px; resize: vertical; }
+  .modal input[type="text"]:focus,
+  .modal select:focus,
+  .modal textarea:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  @media (max-width: 900px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    body { padding: 24px 14px 40px; }
+    .title { font-size: 26px; }
+    .card { padding: 16px; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .file-row { flex-direction: column; align-items: stretch; }
+    .btn-secondary { justify-content: center; }
+    .actions { flex-direction: column; align-items: stretch; }
+    .btn-primary, .btn-gsheet { justify-content: center; }
+    .total-card { flex-direction: column; align-items: flex-start; }
+    .total-card .num { font-size: 40px; }
+  }
+
+  .file-input-hidden { display: none; }
+
+  /* ============ 問題訂單相關樣式 ============ */
+
+  /* 出貨單產生 tab 的命中警示 */
+  .problem-alert {
+    background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 20px rgba(198, 40, 40, 0.4);
+    border: 1px solid #ff5252;
+    animation: alertPulse 2s ease-in-out infinite;
+  }
+  @keyframes alertPulse {
+    0%, 100% { box-shadow: 0 4px 20px rgba(198, 40, 40, 0.4); }
+    50%      { box-shadow: 0 4px 28px rgba(255, 82, 82, 0.6); }
+  }
+  .problem-alert-header {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+  }
+  .problem-alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .problem-alert-item {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .problem-alert-item .pa-id {
+    font-weight: 700;
+    color: #ffcdd2;
+    letter-spacing: 0.02em;
+  }
+  .problem-alert-item .pa-type {
+    background: #fff;
+    color: #c62828;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .problem-alert-item .pa-note {
+    color: #ffe0e0;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 12px;
+    flex: 1;
+    min-width: 120px;
+  }
+
+  /* 問題訂單表單 */
+  .form-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    margin-top: 14px;
+    font-weight: 500;
+  }
+  .form-label:first-of-type { margin-top: 0; }
+  .form-input,
+  .form-textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .form-textarea {
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 70px;
+    resize: vertical;
+  }
+  .form-input:focus,
+  .form-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  /* 問題類別 radio cards */
+  .problem-type-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .radio-card {
+    position: relative;
+    cursor: pointer;
+  }
+  .radio-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .radio-card span {
+    display: block;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .radio-card:hover span {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .radio-card input[type="radio"]:checked + span {
+    background: rgba(247, 120, 186, 0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* 問題訂單清單 */
+  .problem-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .problem-empty {
+    background: var(--bg-card);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    color: var(--text-mute);
+    font-size: 13px;
+  }
+  .problem-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .problem-item-main {
+    flex: 1;
+    min-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .problem-item-row1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .problem-item .pi-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+  .problem-item .pi-type {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--accent-2);
+    font-weight: 500;
+  }
+  .problem-item .pi-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-mute);
+  }
+  .problem-item .pi-note {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .problem-item .pi-resolve {
+    background: transparent;
+    color: var(--cat-red-num);
+    border: 1px solid var(--cat-red-border);
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .problem-item .pi-resolve:hover:not(:disabled) {
+    background: rgba(198, 40, 40, 0.12);
+    color: var(--text);
+  }
+  .problem-item .pi-resolve:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 600px) {
+    .problem-type-grid { grid-template-columns: 1fr; }
+    .problem-item { flex-direction: column; align-items: stretch; }
+    .problem-item .pi-resolve { width: 100%; text-align: center; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="header">
+      <div class="title-wrap">
+        <h1 class="title">出貨幫手</h1>
+        <p class="subtitle">LINE 訂單 → 黑貓託運單 · 物流單號回填 · 問題訂單追蹤 · <code>泥研製所</code></p>
+      </div>
+      <button class="settings-link" onclick="openSettings()">⚙ 設定</button>
+    </header>
+
+    <!-- Tab switcher -->
+    <div class="tabs">
+      <button class="tab active" data-tab="shipping" onclick="switchTab('shipping')">
+        📦  出貨單產生
+      </button>
+      <button class="tab" data-tab="logistics" onclick="switchTab('logistics')">
+        🚚  物流單號回填
+      </button>
+      <button class="tab" data-tab="problems" onclick="switchTab('problems')">
+        ⚠️  問題訂單
+      </button>
+    </div>
+
+    <!-- ================ Tab 1: 出貨單產生 ================ -->
+    <div id="tab-shipping" class="tab-panel active">
+
+      <section class="card">
+        <div class="card-label">LINE 訂單總表</div>
+        <div class="file-row">
+          <div id="fileDisplay" class="file-display empty">尚未選擇檔案…</div>
+          <input type="file" id="fileInput" class="file-input-hidden" accept=".xlsx,.xls">
+          <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
+            選擇檔案…
+          </button>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="runBtn" class="btn btn-primary" disabled onclick="generateOutput()">
+          ▶  下載黑貓出貨表
+        </button>
+        <button id="uploadBtn" class="btn btn-gsheet" disabled onclick="uploadAllToSheet()">
+          ↗  上傳到 Google Sheet
+        </button>
+      </div>
+
+      <div id="status" class="status">等待選擇 LINE 訂單檔…</div>
+
+      <!-- 今日總訂單大卡 -->
+      <div class="total-card">
+        <div>
+          <div class="label">今日總訂單</div>
+          <div class="num"><span id="stat-total">—</span><small>筆</small></div>
+        </div>
+      </div>
+
+      <!-- 問題訂單命中警示(載入訂單後若有命中才顯示) -->
+      <div id="problemAlert" class="problem-alert" style="display: none;">
+        <div class="problem-alert-header">
+          ⚠️ 偵測到 <span id="problemAlertCount">0</span> 筆問題訂單
+        </div>
+        <div id="problemAlertList" class="problem-alert-list"></div>
+      </div>
+
+      <div class="stats-header">
+        <span class="stats-title">今日訂單統計</span>
+        <span id="statsHint" class="stats-hint"></span>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card normal">
+          <div class="stat-label">一般訂單</div>
+          <div><span id="stat-regular" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">含注意品項、雷雕、其他訂單</div>
+        </div>
+        <div class="stat-card cyan clickable" onclick="openSheet('注意品項')" title="點我開啟注意品項試算表">
+          <div class="stat-label">注意品項</div>
+          <div><span id="stat-notice" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">點我 → 開啟試算表</div>
+        </div>
+        <div class="stat-card gray clickable" onclick="openSheet('雷雕')" title="點我開啟雷雕試算表">
+          <div class="stat-label">雷雕</div>
+          <div><span id="stat-laser" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">點我 → 開啟試算表</div>
+        </div>
+        <div class="stat-card red clickable" onclick="openSheet('黑熊')" title="點我開啟黑熊試算表">
+          <div class="stat-label">黑熊</div>
+          <div><span id="stat-bear" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">點我 → 開啟試算表</div>
+        </div>
+        <div class="stat-card yellow clickable" onclick="openSheet('永生花')" title="點我開啟永生花試算表">
+          <div class="stat-label">永生花</div>
+          <div><span id="stat-flower" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">點我 → 開啟試算表</div>
+        </div>
+        <div class="stat-card green clickable" onclick="openSheet('盆景公仔組')" title="點我開啟盆景試算表">
+          <div class="stat-label">盆景公仔組</div>
+          <div><span id="stat-bonsai" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">點我 → 開啟試算表</div>
+        </div>
+      </div>
+
+      <div class="stats-header" style="margin-top: 24px;">
+        <span class="stats-title">廠商對照 (可複製)</span>
+      </div>
+      <div class="card" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.9;">
+        <div id="vendor-text" style="white-space: pre-wrap; color: var(--text-dim);">載入訂單後顯示…</div>
+        <button id="copyVendorBtn" class="btn btn-ghost btn-small" style="margin-top: 12px;" disabled onclick="copyVendorText()">📋 複製</button>
+      </div>
+
+    </div>
+
+    <!-- ================ Tab 2: 物流單號回填 ================ -->
+    <div id="tab-logistics" class="tab-panel">
+
+      <section class="card">
+        <div class="card-label"><span class="num">1</span>LINE 物流單號模板 (.xlsx)</div>
+        <div class="file-row">
+          <div id="lineTemplateDisplay" class="file-display empty">尚未選擇檔案…</div>
+          <input type="file" id="lineTemplateInput" class="file-input-hidden" accept=".xlsx">
+          <button class="btn btn-secondary" onclick="document.getElementById('lineTemplateInput').click()">
+            選擇檔案…
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-label"><span class="num">2</span>黑貓出貨明細表 (.xls / .xlsx)</div>
+        <div class="file-row">
+          <div id="bcDetailDisplay" class="file-display empty">尚未選擇檔案…</div>
+          <input type="file" id="bcDetailInput" class="file-input-hidden" accept=".xls,.xlsx">
+          <button class="btn btn-secondary" onclick="document.getElementById('bcDetailInput').click()">
+            選擇檔案…
+          </button>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="logisticsRunBtn" class="btn btn-primary" disabled onclick="generateLogistics()">
+          ▶  下載 LINE 物流單號表
+        </button>
+      </div>
+
+      <div id="logisticsStatus" class="status">請依序選擇兩個檔案…</div>
+
+      <div class="stats-header">
+        <span class="stats-title">配對統計</span>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card normal">
+          <div class="stat-label">LINE 總訂單</div>
+          <div><span id="stat-line-total" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">LINE 物流單號模板</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-label">配對成功</div>
+          <div><span id="stat-matched" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">已找到託運單號</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-label">未配對</div>
+          <div><span id="stat-unmatched" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">黑貓明細表找不到</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================ Tab 3: 問題訂單 ================ -->
+    <div id="tab-problems" class="tab-panel">
+
+      <!-- 橘色統計字卡 -->
+      <div class="stat-card orange clickable" onclick="openProblemSheet()" title="點我開啟問題訂單試算表" style="margin-bottom: 14px;">
+        <div class="stat-label">問題訂單總數</div>
+        <div><span id="stat-problem-total" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+        <div class="stat-sub">點我 → 開啟試算表</div>
+      </div>
+
+      <section class="card">
+        <div class="card-label">新增問題訂單</div>
+        <p style="color: var(--text-dim); font-size: 12px; margin-bottom: 16px; line-height: 1.7;">
+          客人在下單前先詢問問題(改規格、改地址、改時間等)?先記錄訂單編號,當天出貨匯入 LINE 訂單時,若包含這筆編號會跳出醒目提醒。
+        </p>
+
+        <label class="form-label">訂單編號</label>
+        <input type="text" id="problemOrderId" class="form-input" placeholder="例如:OD202604301234">
+
+        <label class="form-label">問題類別</label>
+        <div class="problem-type-grid">
+          <label class="radio-card">
+            <input type="radio" name="problemType" value="修改顏色/規格" checked>
+            <span>🎨 修改顏色/規格</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="problemType" value="修改收件資料">
+            <span>📮 修改收件資料</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="problemType" value="修改配送時間">
+            <span>⏰ 修改配送時間</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="problemType" value="其他">
+            <span>📝 其他</span>
+          </label>
+        </div>
+
+        <label class="form-label">備註(選填)</label>
+        <textarea id="problemNote" class="form-textarea" placeholder="例如:客人要把粉色換成藍色"></textarea>
+
+        <div class="actions" style="margin-top: 16px; margin-bottom: 0;">
+          <button id="problemSubmitBtn" class="btn btn-primary" onclick="submitProblem()">
+            ➕  送出問題訂單
+          </button>
+          <button class="btn btn-secondary" onclick="clearProblemForm()">清空</button>
+          <button class="btn btn-ghost btn-small" onclick="loadProblems()" style="margin-left: auto;">
+            🔄 重新整理清單
+          </button>
+        </div>
+      </section>
+
+      <div id="problemStatus" class="status">填寫後送出 → 自動上傳到 Google 試算表…</div>
+
+      <div class="stats-header">
+        <span class="stats-title">目前問題訂單清單</span>
+        <span id="problemListHint" class="stats-hint">載入中…</span>
+      </div>
+
+      <div id="problemList" class="problem-list">
+        <div class="problem-empty">尚未載入清單,點上方「🔄 重新整理清單」即可載入。</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      資料不會離開你的瀏覽器  ·  v8.0
+    </div>
+
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal-backdrop" onclick="if(event.target===this) closeSettings()">
+    <div class="modal">
+      <h2>Google Sheet 上傳設定</h2>
+      <p class="hint">
+        用 <code>Google Apps Script</code> 把訂單自動附加到對應 Google 試算表(給廠商看的)。<br>
+        所有設定只存在你這台瀏覽器(<code>localStorage</code>),不會送到任何地方,也不會跟著程式碼上傳。
+      </p>
+
+      <label>① Apps Script 網路應用程式網址</label>
+      <input type="text" id="gsUrlInput" placeholder="https://script.google.com/macros/s/..../exec">
+
+      <p class="hint" style="margin-top: 18px; margin-bottom: 6px;">
+        ② 各分類試算表網址(讓字卡可以「點擊 → 開啟試算表」,留空則該字卡不可點開)
+      </p>
+
+      <label>雷雕</label>
+      <input type="text" id="sheetUrl_雷雕" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+
+      <label>黑熊</label>
+      <input type="text" id="sheetUrl_黑熊" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+
+      <label>永生花</label>
+      <input type="text" id="sheetUrl_永生花" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+
+      <label>注意品項</label>
+      <input type="text" id="sheetUrl_注意品項" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+
+      <label>盆景公仔組</label>
+      <input type="text" id="sheetUrl_盆景公仔組" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+
+      <label>問題訂單試算表</label>
+      <input type="text" id="sheetUrl_問題訂單" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeSettings()">取消</button>
+        <button class="btn btn-primary" onclick="saveSettings()">儲存</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ===================================================================
+// 共用設定
+// ===================================================================
+const SENDER_NAME = "LINE禮物-泥研製所";
+const ITEM_COUNT = 1;
+const ITEM_NAME_CODE = 9;
+
+const REMOVE_PATTERNS = [
+  "+250天然精油: 不加購",
+  ", 加購: 不加購",
+  "(收禮者可任選)",
+  "【+1元多一件】",
+  "泥研製所||",
+  "+250",
+  "+50",
+];
+
+const FIELD_MAPPING = {
+  "訂單編號":       "訂單編號",
+  "收件人姓名":     "收件人姓名",
+  "收件人聯絡電話": "收件人手機",
+  "配送地址":       "收件人地址",
+};
+
+// 商品編號 → 分類細項 (for 新統計)
+// 永生花現已改用「規格設定」判斷黃金運/粉招福,舊的商品編號保留作向下容錯
+const PRODUCT_CODES = {
+  BEAR_BASEBALL:      "322293696",
+  BEAR_NORMAL:        "322293717",
+  FLOWER_PINK_LEGACY: "322346457",  // 舊版「粉色」 → 視為粉招福
+  FLOWER_BLUE_LEGACY: "322329751",  // 舊版「藍色」 → 視為黃金運
+  PLANT_POT:          "322230424",
+};
+
+const SPECIAL_CATEGORIES = [
+  { keys: ["黑熊"],       name: "黑熊",       bg: "C62828", fg: "FFFFFF", priority: 5, uiId: "stat-bear" },
+  { keys: ["永生花"],     name: "永生花",     bg: "FDD835", fg: "000000", priority: 4, uiId: "stat-flower" },
+  { keys: ["盆景公仔組"], name: "盆景公仔組", bg: "2E7D32", fg: "FFFFFF", priority: 3, uiId: "stat-bonsai" },
+  { keys: ["兔", "虎", "龍", "名片座", "貓頭鷹", "熊貓", "巨", "摩艾", "蟾蜍", "躲避屋", "炭錢水泥招財貓", "12cm"],
+    name: "注意品項",   bg: "4DB6D3", fg: "003847", priority: 2, uiId: "stat-notice" },
+  { keys: ["雷雕"],       name: "雷雕",       bg: "BDBDBD", fg: "000000", priority: 1, uiId: "stat-laser" },
+];
+
+// 要上傳到 Google Sheet 的分類
+const UPLOAD_CATEGORIES = ["雷雕", "黑熊", "永生花", "注意品項", "盆景公仔組"];
+
+const TEMPLATE_HEADERS = [
+  "收件人姓名", "收件人電話", "收件人手機", "收件人地址",
+  "代收金額或到付", "件數", "品名(詳參數表)", "備註", "訂單編號",
+  "希望配達時間(詳參數表)", "出貨日期(YYYY/MM/DD)", "預定配達日期(YYYY/MM/DD)",
+  "溫層(詳參數表)", "尺寸(詳參數表)",
+  "寄件人姓名", "寄件人電話", "寄件人手機", "寄件人地址",
+  "保值金額(20001~10萬之間)-會產生額外費用", "品名說明",
+  "是否列印(Y/N)", "是否捐贈(Y/N)", "統一編號", "手機載具", "愛心碼",
+  "可刷卡(Y/N)", "手機支付(Y/N)"
+];
+
+const REQUIRED_COLS = [
+  "訂單編號", "收件人姓名", "收件人聯絡電話", "配送地址",
+  "商品名稱", "規格設定", "客製刻印選項", "數量"
+];
+
+let loadedRows = null;
+let lineTemplateData = null;
+let bcDetailData = null;
+let lastStats = null;              // 最近一次算出來的統計
+
+// ===================================================================
+// 核心邏輯 (出貨表)
+// ===================================================================
+function buildNote(row) {
+  const parts = [];
+  for (const col of ["商品名稱", "規格設定", "客製刻印選項"]) {
+    const v = row[col];
+    if (v != null) {
+      const s = String(v).trim();
+      if (s && s !== "-") parts.push(s);
+    }
+  }
+  const qty = row["數量"] ?? 1;
+  let note = parts.join(" ") + ` x${qty}`;
+  for (const pat of REMOVE_PATTERNS) note = note.split(pat).join("");
+  note = note.replace(/[,、]\s*(?=x\d)/g, " ");
+  return note.replace(/\s+/g, " ").trim();
+}
+
+function categorize(row) {
+  const hs = [
+    row["商品名稱"] ?? "",
+    row["規格設定"] ?? "",
+    row["客製刻印選項"] ?? "",
+    row["_備註"] ?? "",
+  ].map(String).join(" ");
+  for (const cat of SPECIAL_CATEGORIES) {
+    for (const kw of cat.keys) {
+      if (hs.includes(kw)) return cat.name;
+    }
+  }
+  return null;
+}
+
+// 計算各種數量(含黑熊細分、永生花細分、植物盆)
+function computeStats(rows) {
+  const counts = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, 0]));
+  rows.forEach(r => { if (r["_類別"] && counts[r["_類別"]] !== undefined) counts[r["_類別"]]++; });
+
+  // ---- 細分統計 ----
+  // bear / flower / plant 的子項是「數量」(給廠商對照用)
+  // plantOrders 是「訂單筆數」(給字卡顯示用)
+  const bear = { baseball: 0, normal: 0 };
+  // 永生花改用「規格設定」判斷顏色:黃金運 / 粉招福(舊資料的粉色/藍色也保留容錯)
+  const flower = { gold: 0, pink: 0, other: 0 };
+  const plant = { beige: 0, green: 0, other: 0 };
+  let plantOrders = 0;
+
+  rows.forEach(r => {
+    const code = String(r["商品編號"] ?? "").trim();
+    const qty = parseInt(r["數量"], 10) || 1;
+
+    if (code === PRODUCT_CODES.BEAR_BASEBALL) bear.baseball += qty;
+    else if (code === PRODUCT_CODES.BEAR_NORMAL) bear.normal += qty;
+
+    // 永生花:用「類別」判定是不是永生花,再用規格設定判定顏色
+    if (r["_類別"] === "永生花") {
+      const spec = String(r["規格設定"] ?? "");
+      if (spec.includes("黃金運") || spec.includes("黃金")) flower.gold += qty;
+      else if (spec.includes("粉招福") || spec.includes("粉招") || spec.includes("粉福")) flower.pink += qty;
+      // 舊資料容錯:還在用粉色/藍色或舊商品編號的訂單
+      else if (spec.includes("粉色") || code === PRODUCT_CODES.FLOWER_PINK_LEGACY) flower.pink += qty;
+      else if (spec.includes("藍色") || code === PRODUCT_CODES.FLOWER_BLUE_LEGACY) flower.gold += qty;
+      else flower.other += qty;
+    }
+
+    if (code === PRODUCT_CODES.PLANT_POT) {
+      plantOrders++;
+      const spec = String(r["規格設定"] ?? "");
+      if (spec.includes("米白")) plant.beige += qty;
+      else if (spec.includes("綠")) plant.green += qty;
+      else plant.other += qty;
+    }
+  });
+
+  const excluded = new Set(["黑熊", "永生花", "盆景公仔組"]);
+  const excludedTotal = Object.entries(counts)
+    .filter(([n]) => excluded.has(n)).reduce((a, [_, v]) => a + v, 0);
+  const regular = rows.length - excludedTotal;
+
+  return { regular, counts, total: rows.length, bear, flower, plant, plantOrders };
+}
+
+async function handleFile(file) {
+  setStatus("status", "loading", "讀取中…");
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: "array" });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false, defval: "" });
+
+    if (rows.length === 0) throw new Error("訂單表沒有資料");
+    const missing = REQUIRED_COLS.filter(c => !(c in rows[0]));
+    if (missing.length > 0) throw new Error(`缺少欄位:${missing.join("、")}`);
+
+    rows.forEach(r => {
+      r["_備註"] = buildNote(r);
+      r["_類別"] = categorize(r);
+    });
+
+    const prioMap = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, c.priority]));
+    rows.sort((a, b) => {
+      const pa = prioMap[a["_類別"]] ?? 0;
+      const pb = prioMap[b["_類別"]] ?? 0;
+      if (pa !== pb) return pa - pb;
+      const n1 = String(a["商品名稱"] ?? "").localeCompare(String(b["商品名稱"] ?? ""));
+      if (n1 !== 0) return n1;
+      return String(a["規格設定"] ?? "").localeCompare(String(b["規格設定"] ?? ""));
+    });
+
+    loadedRows = rows;
+    renderStats(computeStats(rows));
+    document.getElementById("runBtn").disabled = false;
+
+    const counts = lastStats.counts;
+    const uploadableCount = UPLOAD_CATEGORIES.reduce((s, c) => s + (counts[c] ?? 0), 0);
+    document.getElementById("uploadBtn").disabled = uploadableCount === 0;
+    setStatus("status", "success", `✓ 已載入 ${rows.length} 筆資料,可執行匯出`);
+
+    // 載入完成後比對問題訂單清單
+    checkProblemOrdersAgainstLoaded();
+  } catch (e) {
+    loadedRows = null;
+    document.getElementById("runBtn").disabled = true;
+    document.getElementById("uploadBtn").disabled = true;
+    setStatus("status", "error", `✗ 讀取失敗:${e.message}`);
+    resetShippingStats();
+    hideProblemAlert();
+  }
+}
+
+function renderStats(s) {
+  lastStats = s;
+  document.getElementById("stat-total").textContent = s.total;
+  document.getElementById("stat-regular").textContent = s.regular;
+
+  // 字卡一律顯示訂單筆數
+  SPECIAL_CATEGORIES.forEach(c => {
+    const el = document.getElementById(c.uiId);
+    if (!el) return;
+    el.textContent = s.counts[c.name] ?? 0;
+  });
+
+  document.getElementById("statsHint").textContent = `共 ${s.total} 筆訂單`;
+
+  // 廠商對照文字 (只有數量,不寫商品編號)
+  const lines = [];
+  lines.push(`【黑熊廠商】棒球熊 ${s.bear.baseball} 隻,一般熊 ${s.bear.normal} 隻`);
+  let flowerLine = `【永生花】黃金運 ${s.flower.gold} 個,粉招福 ${s.flower.pink} 個`;
+  if (s.flower.other > 0) flowerLine += `,其他 ${s.flower.other} 個`;
+  lines.push(flowerLine);
+  lines.push(`【植物盆】米白 ${s.plant.beige} 個,綠 ${s.plant.green} 個`);
+
+  document.getElementById("vendor-text").textContent = lines.join("\n");
+  document.getElementById("vendor-text").style.color = "var(--text)";
+  document.getElementById("copyVendorBtn").disabled = false;
+}
+
+function resetShippingStats() {
+  lastStats = null;
+  ["stat-total", "stat-regular", "stat-bonsai"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "—";
+  });
+  SPECIAL_CATEGORIES.forEach(c => {
+    const el = document.getElementById(c.uiId);
+    if (el) el.textContent = "—";
+  });
+  document.getElementById("statsHint").textContent = "";
+  document.getElementById("vendor-text").textContent = "載入訂單後顯示…";
+  document.getElementById("vendor-text").style.color = "var(--text-dim)";
+  document.getElementById("copyVendorBtn").disabled = true;
+}
+
+function copyVendorText() {
+  const text = document.getElementById("vendor-text").textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("copyVendorBtn");
+    const orig = btn.textContent;
+    btn.textContent = "✓ 已複製";
+    setTimeout(() => { btn.textContent = orig; }, 1200);
+  });
+}
+
+const MAX_ROWS_PER_FILE = 100;
+
+function generateOutput() {
+  if (!loadedRows) return;
+  setStatus("status", "loading", "產生出貨表中…");
+  setTimeout(() => {
+    try {
+      const EXCLUDE_FROM_LOCAL = new Set(["黑熊", "永生花", "盆景公仔組"]);
+      const exportRows = loadedRows.filter(r => !EXCLUDE_FROM_LOCAL.has(r["_類別"]));
+
+      if (exportRows.length === 0) {
+        setStatus("status", "warn",
+          `⚠ 全部 ${loadedRows.length} 筆都屬於黑熊/永生花/盆景公仔組,已不下載本地表(請用一鍵上傳)`);
+        return;
+      }
+
+      const excludedCount = loadedRows.length - exportRows.length;
+      const total = exportRows.length;
+      const fileCount = Math.ceil(total / MAX_ROWS_PER_FILE);
+      const today = todayStr();
+      const catMap = Object.fromEntries(
+        SPECIAL_CATEGORIES.map(c => [c.name, { bg: c.bg, fg: c.fg }])
+      );
+
+      // 問題訂單橘色樣式 (優先於分類色)
+      const PROBLEM_STYLE = { bg: "FF8F00", fg: "FFFFFF" };
+      const problemIds = new Set(problemListCache.map(p => p.orderId));
+      let problemHitInExport = 0;
+
+      for (let part = 0; part < fileCount; part++) {
+        const start = part * MAX_ROWS_PER_FILE;
+        const end = Math.min(start + MAX_ROWS_PER_FILE, total);
+        const chunk = exportRows.slice(start, end);
+
+        const aoa = [TEMPLATE_HEADERS.slice()];
+        const rowStyles = [];
+
+        chunk.forEach(row => {
+          const newRow = new Array(TEMPLATE_HEADERS.length).fill("");
+          for (const [src, dst] of Object.entries(FIELD_MAPPING)) {
+            const col = TEMPLATE_HEADERS.indexOf(dst);
+            if (col >= 0) newRow[col] = row[src] ?? "";
+          }
+          newRow[TEMPLATE_HEADERS.indexOf("備註")] = row["_備註"];
+          newRow[TEMPLATE_HEADERS.indexOf("寄件人姓名")] = SENDER_NAME;
+          newRow[TEMPLATE_HEADERS.indexOf("件數")] = ITEM_COUNT;
+          newRow[TEMPLATE_HEADERS.indexOf("品名(詳參數表)")] = ITEM_NAME_CODE;
+          aoa.push(newRow);
+
+          // 問題訂單優先 → 橘色;否則才用原本分類顏色
+          const orderId = String(row["訂單編號"] ?? "").trim();
+          if (orderId && problemIds.has(orderId)) {
+            rowStyles.push(PROBLEM_STYLE);
+            problemHitInExport++;
+          } else {
+            rowStyles.push(row["_類別"] ? catMap[row["_類別"]] : null);
+          }
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        rowStyles.forEach((style, i) => {
+          if (!style) return;
+          const excelRow = i + 1;
+          for (let c = 0; c < TEMPLATE_HEADERS.length; c++) {
+            const addr = XLSX.utils.encode_cell({ r: excelRow, c });
+            if (!ws[addr]) ws[addr] = { t: "s", v: "" };
+            ws[addr].s = {
+              fill: { patternType: "solid", fgColor: { rgb: style.bg } },
+              font: { color: { rgb: style.fg }, bold: true },
+            };
+          }
+        });
+
+        ws["!cols"] = TEMPLATE_HEADERS.map(h => {
+          if (h === "收件人地址" || h === "備註") return { wch: 32 };
+          if (h === "收件人姓名" || h === "寄件人姓名") return { wch: 14 };
+          if (h === "訂單編號") return { wch: 22 };
+          if (h === "收件人手機") return { wch: 13 };
+          return { wch: 10 };
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "空白傳託運單資料表");
+
+        const filename = fileCount === 1
+          ? `黑貓出貨表_${today}.xlsx`
+          : `黑貓出貨表_${today}_${part + 1}_共${fileCount}.xlsx`;
+        XLSX.writeFile(wb, filename, { cellStyles: true, bookType: "xlsx" });
+      }
+
+      let msg = fileCount === 1
+        ? `✓ 已下載黑貓出貨表_${today}.xlsx  (${total} 筆)`
+        : `✓ 已下載 ${fileCount} 個檔案  (共 ${total} 筆)`;
+      if (excludedCount > 0) msg += `  · 另 ${excludedCount} 筆(黑熊/永生花/盆景)請用上傳`;
+      if (problemHitInExport > 0) msg += `  · 🟧 ${problemHitInExport} 筆問題訂單已橘色反白`;
+      setStatus("status", "success", msg);
+    } catch (e) {
+      setStatus("status", "error", `✗ 匯出失敗:${e.message}`);
+      console.error(e);
+    }
+  }, 50);
+}
+
+// ===================================================================
+// 試算表網址(全部從 localStorage 讀,不寫死任何 ID)
+// ===================================================================
+const SHEET_URL_KEYS = {
+  "雷雕":       "niyan_sheet_url_laser",
+  "黑熊":       "niyan_sheet_url_bear",
+  "永生花":     "niyan_sheet_url_flower",
+  "注意品項":   "niyan_sheet_url_notice",
+  "盆景公仔組": "niyan_sheet_url_bonsai",
+  "問題訂單":   "niyan_sheet_url_problem",
+};
+
+function getSheetUrl(category) {
+  const key = SHEET_URL_KEYS[category];
+  return key ? (localStorage.getItem(key) || "") : "";
+}
+
+function openSheet(category) {
+  const url = getSheetUrl(category);
+  if (url) {
+    window.open(url, "_blank");
+  } else {
+    setStatus("status", "warn", `⚠ 尚未設定「${category}」試算表網址,請先點「⚙ 設定」`);
+    openSettings();
+  }
+}
+
+function openProblemSheet() {
+  const url = getSheetUrl("問題訂單");
+  if (url) {
+    window.open(url, "_blank");
+  } else {
+    setStatus("status", "warn", "⚠ 尚未設定「問題訂單」試算表網址,請先點「⚙ 設定」");
+    openSettings();
+  }
+}
+
+// ===================================================================
+// 設定
+// ===================================================================
+const GS_URL_KEY = "niyan_gs_url";
+
+function openSettings() {
+  document.getElementById("gsUrlInput").value = localStorage.getItem(GS_URL_KEY) || "";
+  for (const cat of Object.keys(SHEET_URL_KEYS)) {
+    const el = document.getElementById("sheetUrl_" + cat);
+    if (el) el.value = getSheetUrl(cat);
+  }
+  document.getElementById("settingsModal").classList.add("show");
+}
+function closeSettings() { document.getElementById("settingsModal").classList.remove("show"); }
+
+function saveSettings() {
+  const url = document.getElementById("gsUrlInput").value.trim();
+  if (url && !url.startsWith("https://script.google.com/")) {
+    setStatus("status", "error", "✗ Apps Script 網址格式不正確,應以 https://script.google.com/ 開頭");
+    return;
+  }
+
+  // 驗證每個試算表網址(允許留空)
+  for (const cat of Object.keys(SHEET_URL_KEYS)) {
+    const el = document.getElementById("sheetUrl_" + cat);
+    if (!el) continue;
+    const v = el.value.trim();
+    if (v && !v.startsWith("https://docs.google.com/spreadsheets/")) {
+      setStatus("status", "error", `✗「${cat}」網址格式不正確,應以 https://docs.google.com/spreadsheets/ 開頭`);
+      return;
+    }
+  }
+
+  // 通過驗證,寫入
+  if (url) localStorage.setItem(GS_URL_KEY, url);
+  else localStorage.removeItem(GS_URL_KEY);
+
+  for (const [cat, storageKey] of Object.entries(SHEET_URL_KEYS)) {
+    const el = document.getElementById("sheetUrl_" + cat);
+    if (!el) continue;
+    const v = el.value.trim();
+    if (v) localStorage.setItem(storageKey, v);
+    else localStorage.removeItem(storageKey);
+  }
+
+  setStatus("status", "success", "✓ 設定已儲存");
+  closeSettings();
+}
+
+function getGsUrl() { return localStorage.getItem(GS_URL_KEY) || ""; }
+
+// ===================================================================
+// 一鍵上傳分類訂單(雷雕/黑熊/永生花/注意品項/盆景)到廠商試算表
+// ===================================================================
+function uploadAllToSheet() {
+  if (!loadedRows) return;
+  const url = getGsUrl();
+  if (!url) {
+    setStatus("status", "warn", "⚠ 尚未設定 Apps Script 網址,請先點「⚙ 設定」");
+    openSettings();
+    return;
+  }
+
+  const today = todayStr("/");
+  const targets = {};
+  let totalCount = 0;
+
+  UPLOAD_CATEGORIES.forEach(cat => {
+    const catRows = loadedRows.filter(r => r["_類別"] === cat);
+    if (catRows.length > 0) {
+      targets[cat] = catRows.map(r => {
+        const base = {
+          date: today,
+          name: r["收件人姓名"] ?? "",
+          address: r["配送地址"] ?? "",
+          phone: r["收件人聯絡電話"] ?? "",
+          note: r["_備註"],
+          orderId: r["訂單編號"] ?? "",
+        };
+        if (cat === "永生花") {
+          // 永生花拆成黃金運 / 粉招福兩欄
+          const qty = parseInt(r["數量"], 10) || 1;
+          const spec = String(r["規格設定"] ?? "");
+          const code = String(r["商品編號"] ?? "").trim();
+          let goldQty = 0, pinkQty = 0;
+          if (spec.includes("黃金運") || spec.includes("黃金")) goldQty = qty;
+          else if (spec.includes("粉招福") || spec.includes("粉招") || spec.includes("粉福")) pinkQty = qty;
+          else if (spec.includes("粉色") || code === PRODUCT_CODES.FLOWER_PINK_LEGACY) pinkQty = qty;
+          else if (spec.includes("藍色") || code === PRODUCT_CODES.FLOWER_BLUE_LEGACY) goldQty = qty;
+          else goldQty = qty;  // 都不符合就放黃金運欄,至少不掉資料
+          base.goldQty = goldQty;
+          base.pinkQty = pinkQty;
+        } else {
+          base.qty = r["數量"] ?? 1;
+        }
+        return base;
+      });
+      totalCount += catRows.length;
+    }
+  });
+
+  if (totalCount === 0) {
+    setStatus("status", "warn", "⚠ 沒有可上傳的訂單");
+    return;
+  }
+
+  const catSummary = Object.entries(targets).map(([c, rs]) => `${c} ${rs.length}`).join(" · ");
+  setStatus("status", "loading", `上傳中(${catSummary})…`);
+  document.getElementById("uploadBtn").disabled = true;
+
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "append", targets }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const breakdown = Object.entries(data.results || {})
+          .map(([c, r]) => r.ok ? `${c} ${r.count}` : `${c} 失敗(${r.error})`)
+          .join(" · ");
+        setStatus("status", "success", `✓ 已上傳 ${data.totalWritten} 筆 · ${breakdown}`);
+      } else {
+        setStatus("status", "error", `✗ 上傳失敗:${data.error || "未知錯誤"}`);
+      }
+    })
+    .catch(err => {
+      setStatus("status", "error", `✗ 上傳失敗:${err.message}`);
+    })
+    .finally(() => {
+      document.getElementById("uploadBtn").disabled = false;
+    });
+}
+
+// ===================================================================
+// Tab 2: 物流單號回填 (保留原邏輯)
+// ===================================================================
+async function handleLineTemplate(file) {
+  setStatus("logisticsStatus", "loading", "讀取 LINE 模板中…");
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: "array", cellStyles: true });
+    const sheetName = wb.SheetNames.includes("Template") ? "Template" : wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    if (aoa.length < 2) throw new Error("LINE 模板沒有訂單");
+
+    const headers = aoa[0];
+    const orderIdCol = headers.findIndex(h => String(h).trim() === "訂單編號");
+    const carrierCol = headers.findIndex(h => String(h).includes("貨運業者代碼"));
+    const trackingCol = headers.findIndex(h => String(h).includes("物流單編號"));
+
+    if (orderIdCol < 0) throw new Error("找不到「訂單編號」欄位");
+    if (carrierCol < 0) throw new Error("找不到「貨運業者代碼」欄位");
+    if (trackingCol < 0) throw new Error("找不到「物流單編號」欄位");
+
+    const orders = [];
+    for (let i = 1; i < aoa.length; i++) {
+      const oid = String(aoa[i][orderIdCol] ?? "").trim();
+      if (!oid) continue;
+      orders.push({ rowIdx: i, orderId: oid });
+    }
+
+    lineTemplateData = { wb, sheetName, orders, carrierCol, trackingCol };
+    document.getElementById("stat-line-total").textContent = orders.length;
+    checkBothLoaded();
+    setStatus("logisticsStatus", "success", `✓ LINE 模板已載入 ${orders.length} 筆`);
+  } catch (e) {
+    lineTemplateData = null;
+    setStatus("logisticsStatus", "error", `✗ LINE 模板讀取失敗:${e.message}`);
+    document.getElementById("stat-line-total").textContent = "—";
+    document.getElementById("logisticsRunBtn").disabled = true;
+  }
+}
+
+async function handleBcDetail(file) {
+  setStatus("logisticsStatus", "loading", "讀取黑貓明細中…");
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+    let headerRow = -1;
+    for (let i = 0; i < Math.min(10, aoa.length); i++) {
+      const row = aoa[i].map(v => String(v ?? ""));
+      if (row.some(v => v.includes("訂單編號")) && row.some(v => v.includes("託運單號"))) {
+        headerRow = i;
+        break;
+      }
+    }
+    if (headerRow < 0) throw new Error("找不到「訂單編號」+「託運單號」的表頭列");
+
+    const headers = aoa[headerRow].map(v => String(v ?? "").trim());
+    const orderIdCol = headers.findIndex(h => h.includes("訂單編號"));
+    const trackingCol = headers.findIndex(h => h.includes("託運單號"));
+
+    const map = new Map();
+    for (let i = headerRow + 1; i < aoa.length; i++) {
+      const oid = String(aoa[i][orderIdCol] ?? "").trim();
+      const track = String(aoa[i][trackingCol] ?? "").trim();
+      if (oid && track) map.set(oid, track);
+    }
+
+    bcDetailData = map;
+    checkBothLoaded();
+    setStatus("logisticsStatus", "success", `✓ 黑貓明細已載入 ${map.size} 筆託運單號`);
+  } catch (e) {
+    bcDetailData = null;
+    setStatus("logisticsStatus", "error", `✗ 黑貓明細讀取失敗:${e.message}`);
+    document.getElementById("logisticsRunBtn").disabled = true;
+  }
+}
+
+function checkBothLoaded() {
+  if (lineTemplateData && bcDetailData) {
+    let matched = 0, unmatched = 0;
+    lineTemplateData.orders.forEach(o => {
+      if (bcDetailData.has(o.orderId)) matched++;
+      else unmatched++;
+    });
+    document.getElementById("stat-matched").textContent = matched;
+    document.getElementById("stat-unmatched").textContent = unmatched;
+
+    if (matched > 0) {
+      document.getElementById("logisticsRunBtn").disabled = false;
+      const msg = unmatched > 0
+        ? `✓ 兩個檔案都已載入,配對成功 ${matched} 筆,${unmatched} 筆未配對`
+        : `✓ 兩個檔案都已載入,全部 ${matched} 筆配對成功`;
+      setStatus("logisticsStatus", unmatched > 0 ? "warn" : "success", msg);
+    } else {
+      document.getElementById("logisticsRunBtn").disabled = true;
+      setStatus("logisticsStatus", "error", "✗ 沒有任何訂單配對成功,檢查兩個檔案是否正確");
+    }
+  }
+}
+
+function generateLogistics() {
+  if (!lineTemplateData || !bcDetailData) return;
+  setStatus("logisticsStatus", "loading", "產生 LINE 物流單號表中…");
+
+  setTimeout(() => {
+    try {
+      const { wb, sheetName, orders, carrierCol, trackingCol } = lineTemplateData;
+      const origWs = wb.Sheets[sheetName];
+      const aoa = XLSX.utils.sheet_to_json(origWs, { header: 1, defval: "" });
+      const headerRow = aoa[0];
+      const colCount = headerRow.length;
+
+      const matched = [];
+      const unmatched = [];
+      orders.forEach(o => {
+        const rowData = aoa[o.rowIdx].slice();
+        while (rowData.length < colCount) rowData.push("");
+
+        const track = bcDetailData.get(o.orderId);
+        if (track) {
+          rowData[carrierCol] = "T_CAT";
+          rowData[trackingCol] = String(track);
+          matched.push(rowData);
+        } else {
+          rowData[carrierCol] = "";
+          rowData[trackingCol] = "";
+          unmatched.push(rowData);
+        }
+      });
+
+      const newAoa = [headerRow, ...matched, ...unmatched];
+      const newWs = XLSX.utils.aoa_to_sheet(newAoa);
+
+      const redFill = { patternType: "solid", fgColor: { rgb: "FFCDD2" } };
+      const redFont = { color: { rgb: "B71C1C" }, bold: true };
+
+      for (let i = 0; i < unmatched.length; i++) {
+        const excelRow = matched.length + 1 + i;
+        for (let c = 0; c < colCount; c++) {
+          const addr = XLSX.utils.encode_cell({ r: excelRow, c });
+          if (!newWs[addr]) newWs[addr] = { t: "s", v: "" };
+          newWs[addr].s = { fill: redFill, font: redFont };
+        }
+      }
+
+      if (origWs["!cols"]) newWs["!cols"] = origWs["!cols"];
+      newWs["!freeze"] = { xSplit: 0, ySplit: 1 };
+      wb.Sheets[sheetName] = newWs;
+
+      const today = todayStr();
+      const filename = `LINE物流單號_${today}.xlsx`;
+      XLSX.writeFile(wb, filename, { cellStyles: true, bookType: "xlsx" });
+
+      let msg = `✓ 已下載:${filename}  (填入 ${matched.length} 筆)`;
+      if (unmatched.length > 0) msg += `,另有 ${unmatched.length} 筆未對應(已紅色反白排在最下面)`;
+      setStatus("logisticsStatus", "success", msg);
+    } catch (e) {
+      setStatus("logisticsStatus", "error", `✗ 匯出失敗:${e.message}`);
+      console.error(e);
+    }
+  }, 50);
+}
+
+// ===================================================================
+// UI 工具
+// ===================================================================
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.tab === name);
+  });
+  document.querySelectorAll(".tab-panel").forEach(p => {
+    p.classList.toggle("active", p.id === `tab-${name}`);
+  });
+  maybeLoadProblemsOnTabSwitch(name);
+}
+
+function setStatus(elId, type, msg) {
+  const el = document.getElementById(elId);
+  el.className = "status " + type;
+  if (type === "loading") {
+    el.innerHTML = `<span class="spinner"></span>${msg}`;
+  } else {
+    el.textContent = msg;
+  }
+}
+
+function todayStr(sep = "") {
+  const t = new Date();
+  const y = t.getFullYear();
+  const m = String(t.getMonth() + 1).padStart(2, "0");
+  const d = String(t.getDate()).padStart(2, "0");
+  return `${y}${sep}${m}${sep}${d}`;
+}
+
+// ===================================================================
+// 問題訂單(Tab 3)
+// ===================================================================
+let problemListCache = [];   // [{rowIndex, createdAt, orderId, type, note}]
+
+function submitProblem() {
+  const url = getGsUrl();
+  if (!url) {
+    setStatus("problemStatus", "warn", "⚠ 尚未設定 Apps Script 網址,請先點右上「⚙ 設定」");
+    openSettings();
+    return;
+  }
+
+  const orderId = document.getElementById("problemOrderId").value.trim();
+  if (!orderId) {
+    setStatus("problemStatus", "error", "✗ 請輸入訂單編號");
+    document.getElementById("problemOrderId").focus();
+    return;
+  }
+
+  const typeEl = document.querySelector('input[name="problemType"]:checked');
+  const type = typeEl ? typeEl.value : "其他";
+  const note = document.getElementById("problemNote").value.trim();
+
+  setStatus("problemStatus", "loading", "上傳問題訂單中…");
+  document.getElementById("problemSubmitBtn").disabled = true;
+
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      action: "addProblem",
+      problem: { orderId, type, note },
+    }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const msg = data.updated
+          ? `✓ 已更新問題訂單 ${orderId}`
+          : `✓ 已新增問題訂單 ${orderId}`;
+        setStatus("problemStatus", "success", msg);
+        clearProblemForm();
+        loadProblems();   // 重新載入清單
+      } else {
+        setStatus("problemStatus", "error", `✗ 上傳失敗:${data.error || "未知錯誤"}`);
+      }
+    })
+    .catch(err => {
+      setStatus("problemStatus", "error", `✗ 上傳失敗:${err.message}`);
+    })
+    .finally(() => {
+      document.getElementById("problemSubmitBtn").disabled = false;
+    });
+}
+
+function clearProblemForm() {
+  document.getElementById("problemOrderId").value = "";
+  document.getElementById("problemNote").value = "";
+  // 重設為第一個選項
+  const radios = document.querySelectorAll('input[name="problemType"]');
+  if (radios.length) radios[0].checked = true;
+  document.getElementById("problemOrderId").focus();
+}
+
+function loadProblems() {
+  const url = getGsUrl();
+  if (!url) {
+    document.getElementById("problemListHint").textContent = "尚未設定 Apps Script 網址";
+    document.getElementById("problemList").innerHTML =
+      `<div class="problem-empty">請先點右上「⚙ 設定」設定網址。</div>`;
+    return;
+  }
+
+  document.getElementById("problemListHint").textContent = "載入中…";
+
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "getProblems" }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) throw new Error(data.error || "讀取失敗");
+      problemListCache = data.problems || [];
+      renderProblemList();
+      // 若出貨單已載入,重新比對警示
+      if (loadedRows) checkProblemOrdersAgainstLoaded();
+    })
+    .catch(err => {
+      document.getElementById("problemListHint").textContent = "載入失敗";
+      document.getElementById("problemList").innerHTML =
+        `<div class="problem-empty">✗ 載入失敗:${err.message}</div>`;
+    });
+}
+
+function renderProblemList() {
+  const list = problemListCache;
+  const container = document.getElementById("problemList");
+  const hint = document.getElementById("problemListHint");
+
+  // 更新橘色統計卡
+  const statEl = document.getElementById("stat-problem-total");
+  if (statEl) statEl.textContent = list.length;
+
+  if (list.length === 0) {
+    hint.textContent = "目前沒有問題訂單";
+    container.innerHTML = `<div class="problem-empty">目前沒有問題訂單 🎉</div>`;
+    return;
+  }
+
+  hint.textContent = `共 ${list.length} 筆`;
+
+  // 由新到舊排序(rowIndex 越大代表越新加)
+  const sorted = list.slice().sort((a, b) => b.rowIndex - a.rowIndex);
+
+  container.innerHTML = sorted.map(p => {
+    const safeId = escapeHtml(p.orderId);
+    const safeType = escapeHtml(p.type || "—");
+    const safeTime = escapeHtml(p.createdAt || "");
+    const safeNote = escapeHtml(p.note || "");
+    const noteHtml = safeNote
+      ? `<div class="pi-note">${safeNote}</div>`
+      : "";
+    return `
+      <div class="problem-item" data-row="${p.rowIndex}" data-id="${safeId}">
+        <div class="problem-item-main">
+          <div class="problem-item-row1">
+            <span class="pi-id">${safeId}</span>
+            <span class="pi-type">${safeType}</span>
+            <span class="pi-time">${safeTime}</span>
+          </div>
+          ${noteHtml}
+        </div>
+        <button class="pi-resolve" onclick="resolveProblem(${p.rowIndex}, '${safeId.replace(/'/g, "\\'")}', this)">
+          🗑 刪除
+        </button>
+      </div>
+    `;
+  }).join("");
+}
+
+function resolveProblem(rowIndex, orderId, btn) {
+  const url = getGsUrl();
+  if (!url) {
+    setStatus("problemStatus", "warn", "⚠ 尚未設定 Apps Script 網址");
+    return;
+  }
+  if (!confirm(`確定要刪除問題訂單 ${orderId} ?(會從試算表移除)`)) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "處理中…";
+  }
+  setStatus("problemStatus", "loading", `移除問題訂單 ${orderId}…`);
+
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "removeProblem", rowIndex, orderId }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        setStatus("problemStatus", "success", `✓ 已移除 ${orderId}`);
+        loadProblems();
+      } else {
+        setStatus("problemStatus", "error", `✗ 移除失敗:${data.error || "未知錯誤"}`);
+        if (btn) { btn.disabled = false; btn.textContent = "🗑 刪除"; }
+      }
+    })
+    .catch(err => {
+      setStatus("problemStatus", "error", `✗ 移除失敗:${err.message}`);
+      if (btn) { btn.disabled = false; btn.textContent = "🗑 刪除"; }
+    });
+}
+
+// ====== 出貨單載入時比對問題訂單 ======
+function checkProblemOrdersAgainstLoaded() {
+  if (!loadedRows) { hideProblemAlert(); return; }
+
+  // 若清單還沒載過,先靜默載一次再比對
+  const url = getGsUrl();
+  if (problemListCache.length === 0 && url) {
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "getProblems" }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          problemListCache = data.problems || [];
+          // 同步更新橘色統計卡(即使沒切到問題訂單 tab)
+          const statEl = document.getElementById("stat-problem-total");
+          if (statEl) statEl.textContent = problemListCache.length;
+          doProblemMatch();
+        }
+      })
+      .catch(() => { /* 忽略,不打擾使用者 */ });
+    return;
+  }
+  doProblemMatch();
+}
+
+function doProblemMatch() {
+  if (!loadedRows || problemListCache.length === 0) {
+    hideProblemAlert();
+    return;
+  }
+
+  // 把今天訂單的所有訂單編號收集起來(set)
+  const todayIds = new Set();
+  loadedRows.forEach(r => {
+    const id = String(r["訂單編號"] ?? "").trim();
+    if (id) todayIds.add(id);
+  });
+
+  // 找命中的
+  const hits = problemListCache.filter(p => todayIds.has(p.orderId));
+
+  if (hits.length === 0) {
+    hideProblemAlert();
+    return;
+  }
+
+  document.getElementById("problemAlertCount").textContent = hits.length;
+  document.getElementById("problemAlertList").innerHTML = hits.map(p => {
+    const id = escapeHtml(p.orderId);
+    const type = escapeHtml(p.type || "—");
+    const note = escapeHtml(p.note || "");
+    const noteHtml = note ? `<span class="pa-note">${note}</span>` : "";
+    return `
+      <div class="problem-alert-item">
+        <span class="pa-id">${id}</span>
+        <span class="pa-type">${type}</span>
+        ${noteHtml}
+      </div>
+    `;
+  }).join("");
+  document.getElementById("problemAlert").style.display = "block";
+}
+
+function hideProblemAlert() {
+  const el = document.getElementById("problemAlert");
+  if (el) el.style.display = "none";
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// 切換到問題訂單 tab 時,自動載一次清單
+function maybeLoadProblemsOnTabSwitch(name) {
+  if (name === "problems" && problemListCache.length === 0) {
+    loadProblems();
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeSettings();
+});
+
+document.getElementById("fileInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const d = document.getElementById("fileDisplay");
+  d.textContent = file.name;
+  d.classList.remove("empty"); d.classList.add("has-file");
+  handleFile(file);
+});
+document.getElementById("lineTemplateInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const d = document.getElementById("lineTemplateDisplay");
+  d.textContent = file.name;
+  d.classList.remove("empty"); d.classList.add("has-file");
+  handleLineTemplate(file);
+});
+document.getElementById("bcDetailInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const d = document.getElementById("bcDetailDisplay");
+  d.textContent = file.name;
+  d.classList.remove("empty"); d.classList.add("has-file");
+  handleBcDetail(file);
+});
+</script>
+</body>
+</html>
