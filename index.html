@@ -543,6 +543,68 @@
 
   .file-input-hidden { display: none; }
 
+  /* ============ 廠商對照區塊(每廠商一張卡) ============ */
+  .vendor-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .vendor-empty {
+    background: var(--bg-card);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    color: var(--text-mute);
+    font-size: 13px;
+  }
+  .vendor-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--vendor-color, var(--accent));
+  }
+  .vendor-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .vendor-block-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--vendor-color, var(--accent));
+    letter-spacing: 0.04em;
+  }
+  .vendor-block-body {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+  .vendor-block-copy {
+    background: transparent;
+    color: var(--vendor-color, var(--accent));
+    border: 1px solid var(--vendor-color, var(--border));
+    padding: 5px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .vendor-block-copy:hover {
+    background: rgba(255,255,255,0.06);
+  }
+  .vendor-block.bear   { --vendor-color: var(--cat-red-num); }
+  .vendor-block.flower { --vendor-color: var(--cat-yellow-num); }
+  .vendor-block.plant  { --vendor-color: var(--cat-green-num); }
+
   /* ============ 問題訂單相關樣式 ============ */
 
   /* 出貨單產生 tab 的命中警示 */
@@ -874,11 +936,10 @@
       </div>
 
       <div class="stats-header" style="margin-top: 24px;">
-        <span class="stats-title">廠商對照 (可複製)</span>
+        <span class="stats-title">廠商對照 (按各自的複製鈕)</span>
       </div>
-      <div class="card" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.9;">
-        <div id="vendor-text" style="white-space: pre-wrap; color: var(--text-dim);">載入訂單後顯示…</div>
-        <button id="copyVendorBtn" class="btn btn-ghost btn-small" style="margin-top: 12px;" disabled onclick="copyVendorText()">📋 複製</button>
+      <div id="vendor-blocks" class="vendor-blocks">
+        <div class="vendor-empty">載入訂單後顯示…</div>
       </div>
 
     </div>
@@ -1270,60 +1331,78 @@ function renderStats(s) {
 
   document.getElementById("statsHint").textContent = `共 ${s.total} 筆訂單`;
 
-  // ===== 廠商對照文字 =====
+  // ===== 廠商對照(每廠商一張卡 + 各自的複製鈕) =====
   // 規則:
-  // 1. 每行前面加「今天   」(方便整段複製貼給廠商)
+  // 1. 每行前面加「今天   」
   // 2. 數量為 0 的子項不顯示
-  // 3. 整類別子項全為 0 → 整行不顯示
-  // 4. 永生花直接顯示「規格設定」原文
+  // 3. 整類別子項全為 0 → 整張卡不出現
+  // 4. 永生花:商品編號決定花色,規格設定決定公仔,顯示「粉【黃金運貓】 N個」
   const PREFIX = "今天   ";
-  const lines = [];
+  const blocks = [];   // [{ title: "黑熊", lines: [...], cls: "bear" }, ...]
 
-  // 黑熊:把不為 0 的子項串起來
+  // 黑熊
   {
     const parts = [];
     if (s.bear.baseball > 0) parts.push(`棒球熊 ${s.bear.baseball} 隻`);
     if (s.bear.normal > 0) parts.push(`一般熊 ${s.bear.normal} 隻`);
-    if (parts.length > 0) lines.push(`${PREFIX}${parts.join(",")}`);
-  }
-
-  // 永生花:每個「花色 + 公仔」組合一行,格式「粉【黃金運貓】 1個」
-  if (s.flowerCombos && s.flowerCombos.size > 0) {
-    // 先依花色排(粉 → 藍 → 其他),同花色內再依數量多到少
-    const COLOR_ORDER = { "粉": 0, "藍": 1, "其他": 99 };
-    const sorted = Array.from(s.flowerCombos.entries()).sort((a, b) => {
-      const [colorA, figA] = a[0].split("|");
-      const [colorB, figB] = b[0].split("|");
-      const oa = COLOR_ORDER[colorA] ?? 50;
-      const ob = COLOR_ORDER[colorB] ?? 50;
-      if (oa !== ob) return oa - ob;
-      return b[1] - a[1];   // 同花色按數量多到少
-    });
-    for (const [key, qty] of sorted) {
-      if (qty <= 0) continue;
-      const [color, figure] = key.split("|");
-      lines.push(`${PREFIX}${color}【${figure}】 ${qty}個`);
+    if (parts.length > 0) {
+      blocks.push({ title: "黑熊", cls: "bear", lines: [`${PREFIX}${parts.join(",")}`] });
     }
   }
 
-  // 植物盆:同樣 0 不顯示
+  // 永生花
+  if (s.flowerCombos && s.flowerCombos.size > 0) {
+    const COLOR_ORDER = { "粉": 0, "藍": 1, "其他": 99 };
+    const sorted = Array.from(s.flowerCombos.entries()).sort((a, b) => {
+      const [colorA] = a[0].split("|");
+      const [colorB] = b[0].split("|");
+      const oa = COLOR_ORDER[colorA] ?? 50;
+      const ob = COLOR_ORDER[colorB] ?? 50;
+      if (oa !== ob) return oa - ob;
+      return b[1] - a[1];
+    });
+    const flowerLines = [];
+    for (const [key, qty] of sorted) {
+      if (qty <= 0) continue;
+      const [color, figure] = key.split("|");
+      flowerLines.push(`${PREFIX}${color}【${figure}】 ${qty}個`);
+    }
+    if (flowerLines.length > 0) {
+      blocks.push({ title: "永生花", cls: "flower", lines: flowerLines });
+    }
+  }
+
+  // 植物盆
   {
     const parts = [];
     if (s.plant.beige > 0) parts.push(`米白盆 ${s.plant.beige} 個`);
     if (s.plant.green > 0) parts.push(`綠盆 ${s.plant.green} 個`);
     if (s.plant.other > 0) parts.push(`其他色 ${s.plant.other} 個`);
-    if (parts.length > 0) lines.push(`${PREFIX}${parts.join(",")}`);
+    if (parts.length > 0) {
+      blocks.push({ title: "植物盆", cls: "plant", lines: [`${PREFIX}${parts.join(",")}`] });
+    }
   }
 
-  const vendorEl = document.getElementById("vendor-text");
-  if (lines.length === 0) {
-    vendorEl.textContent = "今天沒有黑熊、永生花、植物盆訂單";
-    vendorEl.style.color = "var(--text-dim)";
+  const container = document.getElementById("vendor-blocks");
+  if (blocks.length === 0) {
+    container.innerHTML = `<div class="vendor-empty">今天沒有黑熊、永生花、植物盆訂單</div>`;
   } else {
-    vendorEl.textContent = lines.join("\n");
-    vendorEl.style.color = "var(--text)";
+    container.innerHTML = blocks.map(b => {
+      // 把要複製的文字塞進 data 屬性,複製鈕會讀
+      const copyText = b.lines.join("\n");
+      const dataCopy = escapeHtml(copyText);
+      const bodyHtml = escapeHtml(copyText);
+      return `
+        <div class="vendor-block ${b.cls}">
+          <div class="vendor-block-header">
+            <span class="vendor-block-title">【${b.title}】</span>
+            <button class="vendor-block-copy" data-copy="${dataCopy}" onclick="copyVendorBlock(this)">📋 複製</button>
+          </div>
+          <div class="vendor-block-body">${bodyHtml}</div>
+        </div>
+      `;
+    }).join("");
   }
-  document.getElementById("copyVendorBtn").disabled = lines.length === 0;
 }
 
 function resetShippingStats() {
@@ -1337,15 +1416,13 @@ function resetShippingStats() {
     if (el) el.textContent = "—";
   });
   document.getElementById("statsHint").textContent = "";
-  document.getElementById("vendor-text").textContent = "載入訂單後顯示…";
-  document.getElementById("vendor-text").style.color = "var(--text-dim)";
-  document.getElementById("copyVendorBtn").disabled = true;
+  const container = document.getElementById("vendor-blocks");
+  if (container) container.innerHTML = `<div class="vendor-empty">載入訂單後顯示…</div>`;
 }
 
-function copyVendorText() {
-  const text = document.getElementById("vendor-text").textContent;
+function copyVendorBlock(btn) {
+  const text = btn.getAttribute("data-copy") || "";
   navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById("copyVendorBtn");
     const orig = btn.textContent;
     btn.textContent = "✓ 已複製";
     setTimeout(() => { btn.textContent = orig; }, 1200);
