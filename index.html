@@ -4,15 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>出貨幫手 | 泥研製所</title>
-
-  <link rel="icon" type="image/png" href="icon.png">
-
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="apple-touch-icon" sizes="152x152" href="icon.png">
-<link rel="apple-touch-icon" sizes="180x180" href="icon.png">
-<link rel="apple-touch-icon" sizes="167x167" href="icon.png">
-
-  
 <link rel="shortcut icon" href="icon_result.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1014,7 +1005,7 @@
     </div>
 
     <div class="footer">
-      資料不會離開你的瀏覽器  ·  v8.0
+      資料不會離開你的瀏覽器  ·  v9.0
     </div>
 
   </div>
@@ -1086,12 +1077,12 @@ const FIELD_MAPPING = {
 };
 
 // 商品編號 → 分類細項 (for 新統計)
-// 永生花現已改用「規格設定」判斷黃金運/粉招福,舊的商品編號保留作向下容錯
+// 永生花:商品編號決定花色(粉/藍),規格設定決定裡面公仔(黃金運貓/粉招福貓)
 const PRODUCT_CODES = {
   BEAR_BASEBALL:      "322293696",
   BEAR_NORMAL:        "322293717",
-  FLOWER_PINK_LEGACY: "322346457",  // 舊版「粉色」 → 視為粉招福
-  FLOWER_BLUE_LEGACY: "322329751",  // 舊版「藍色」 → 視為黃金運
+  FLOWER_PINK:        "322346457",  // 粉花
+  FLOWER_BLUE:        "322329751",  // 藍花
   PLANT_POT:          "322230424",
 };
 
@@ -1168,11 +1159,12 @@ function computeStats(rows) {
   rows.forEach(r => { if (r["_類別"] && counts[r["_類別"]] !== undefined) counts[r["_類別"]]++; });
 
   // ---- 細分統計 ----
-  // bear / flower / plant 的子項是「數量」(給廠商對照用)
+  // bear / plant 的子項是「數量」(給廠商對照用)
   // plantOrders 是「訂單筆數」(給字卡顯示用)
+  // flowerCombos 是 Map<"花色|公仔", 累計數量>:
+  //   花色由商品編號決定(粉/藍),公仔由規格設定決定(黃金運貓/粉招福貓)
   const bear = { baseball: 0, normal: 0 };
-  // 永生花改用「規格設定」判斷顏色:黃金運 / 粉招福(舊資料的粉色/藍色也保留容錯)
-  const flower = { gold: 0, pink: 0, other: 0 };
+  const flowerCombos = new Map();   // ex: "粉|黃金運貓" => 3
   const plant = { beige: 0, green: 0, other: 0 };
   let plantOrders = 0;
 
@@ -1183,15 +1175,21 @@ function computeStats(rows) {
     if (code === PRODUCT_CODES.BEAR_BASEBALL) bear.baseball += qty;
     else if (code === PRODUCT_CODES.BEAR_NORMAL) bear.normal += qty;
 
-    // 永生花:用「類別」判定是不是永生花,再用規格設定判定顏色
+    // 永生花:商品編號決定花色,規格設定決定公仔
     if (r["_類別"] === "永生花") {
+      let color;
+      if (code === PRODUCT_CODES.FLOWER_PINK) color = "粉";
+      else if (code === PRODUCT_CODES.FLOWER_BLUE) color = "藍";
+      else color = "其他";   // 萬一商品編號變了,不要把資料丟掉
+
       const spec = String(r["規格設定"] ?? "");
-      if (spec.includes("黃金運") || spec.includes("黃金")) flower.gold += qty;
-      else if (spec.includes("粉招福") || spec.includes("粉招") || spec.includes("粉福")) flower.pink += qty;
-      // 舊資料容錯:還在用粉色/藍色或舊商品編號的訂單
-      else if (spec.includes("粉色") || code === PRODUCT_CODES.FLOWER_PINK_LEGACY) flower.pink += qty;
-      else if (spec.includes("藍色") || code === PRODUCT_CODES.FLOWER_BLUE_LEGACY) flower.gold += qty;
-      else flower.other += qty;
+      let figure;
+      if (spec.includes("黃金運")) figure = "黃金運貓";
+      else if (spec.includes("粉招福") || spec.includes("粉招") || spec.includes("粉福")) figure = "粉招福貓";
+      else figure = spec.trim() || "(無規格)";   // 找不到就用原文,至少不掉資料
+
+      const key = `${color}|${figure}`;
+      flowerCombos.set(key, (flowerCombos.get(key) || 0) + qty);
     }
 
     if (code === PRODUCT_CODES.PLANT_POT) {
@@ -1208,7 +1206,7 @@ function computeStats(rows) {
     .filter(([n]) => excluded.has(n)).reduce((a, [_, v]) => a + v, 0);
   const regular = rows.length - excludedTotal;
 
-  return { regular, counts, total: rows.length, bear, flower, plant, plantOrders };
+  return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders };
 }
 
 async function handleFile(file) {
@@ -1272,17 +1270,60 @@ function renderStats(s) {
 
   document.getElementById("statsHint").textContent = `共 ${s.total} 筆訂單`;
 
-  // 廠商對照文字 (只有數量,不寫商品編號)
+  // ===== 廠商對照文字 =====
+  // 規則:
+  // 1. 每行前面加「今天   」(方便整段複製貼給廠商)
+  // 2. 數量為 0 的子項不顯示
+  // 3. 整類別子項全為 0 → 整行不顯示
+  // 4. 永生花直接顯示「規格設定」原文
+  const PREFIX = "今天   ";
   const lines = [];
-  lines.push(`【黑熊廠商】棒球熊 ${s.bear.baseball} 隻,一般熊 ${s.bear.normal} 隻`);
-  let flowerLine = `【永生花】黃金運 ${s.flower.gold} 個,粉招福 ${s.flower.pink} 個`;
-  if (s.flower.other > 0) flowerLine += `,其他 ${s.flower.other} 個`;
-  lines.push(flowerLine);
-  lines.push(`【植物盆】米白 ${s.plant.beige} 個,綠 ${s.plant.green} 個`);
 
-  document.getElementById("vendor-text").textContent = lines.join("\n");
-  document.getElementById("vendor-text").style.color = "var(--text)";
-  document.getElementById("copyVendorBtn").disabled = false;
+  // 黑熊:把不為 0 的子項串起來
+  {
+    const parts = [];
+    if (s.bear.baseball > 0) parts.push(`棒球熊 ${s.bear.baseball} 隻`);
+    if (s.bear.normal > 0) parts.push(`一般熊 ${s.bear.normal} 隻`);
+    if (parts.length > 0) lines.push(`${PREFIX}${parts.join(",")}`);
+  }
+
+  // 永生花:每個「花色 + 公仔」組合一行,格式「粉【黃金運貓】 1個」
+  if (s.flowerCombos && s.flowerCombos.size > 0) {
+    // 先依花色排(粉 → 藍 → 其他),同花色內再依數量多到少
+    const COLOR_ORDER = { "粉": 0, "藍": 1, "其他": 99 };
+    const sorted = Array.from(s.flowerCombos.entries()).sort((a, b) => {
+      const [colorA, figA] = a[0].split("|");
+      const [colorB, figB] = b[0].split("|");
+      const oa = COLOR_ORDER[colorA] ?? 50;
+      const ob = COLOR_ORDER[colorB] ?? 50;
+      if (oa !== ob) return oa - ob;
+      return b[1] - a[1];   // 同花色按數量多到少
+    });
+    for (const [key, qty] of sorted) {
+      if (qty <= 0) continue;
+      const [color, figure] = key.split("|");
+      lines.push(`${PREFIX}${color}【${figure}】 ${qty}個`);
+    }
+  }
+
+  // 植物盆:同樣 0 不顯示
+  {
+    const parts = [];
+    if (s.plant.beige > 0) parts.push(`米白盆 ${s.plant.beige} 個`);
+    if (s.plant.green > 0) parts.push(`綠盆 ${s.plant.green} 個`);
+    if (s.plant.other > 0) parts.push(`其他色 ${s.plant.other} 個`);
+    if (parts.length > 0) lines.push(`${PREFIX}${parts.join(",")}`);
+  }
+
+  const vendorEl = document.getElementById("vendor-text");
+  if (lines.length === 0) {
+    vendorEl.textContent = "今天沒有黑熊、永生花、植物盆訂單";
+    vendorEl.style.color = "var(--text-dim)";
+  } else {
+    vendorEl.textContent = lines.join("\n");
+    vendorEl.style.color = "var(--text)";
+  }
+  document.getElementById("copyVendorBtn").disabled = lines.length === 0;
 }
 
 function resetShippingStats() {
@@ -1531,15 +1572,12 @@ function uploadAllToSheet() {
           orderId: r["訂單編號"] ?? "",
         };
         if (cat === "永生花") {
-          // 永生花拆成黃金運 / 粉招福兩欄
+          // 永生花拆成黃金運 / 粉招福兩欄(由「規格設定」判斷裡面公仔的顏色)
           const qty = parseInt(r["數量"], 10) || 1;
           const spec = String(r["規格設定"] ?? "");
-          const code = String(r["商品編號"] ?? "").trim();
           let goldQty = 0, pinkQty = 0;
-          if (spec.includes("黃金運") || spec.includes("黃金")) goldQty = qty;
+          if (spec.includes("黃金運")) goldQty = qty;
           else if (spec.includes("粉招福") || spec.includes("粉招") || spec.includes("粉福")) pinkQty = qty;
-          else if (spec.includes("粉色") || code === PRODUCT_CODES.FLOWER_PINK_LEGACY) pinkQty = qty;
-          else if (spec.includes("藍色") || code === PRODUCT_CODES.FLOWER_BLUE_LEGACY) goldQty = qty;
           else goldQty = qty;  // 都不符合就放黃金運欄,至少不掉資料
           base.goldQty = goldQty;
           base.pinkQty = pinkQty;
