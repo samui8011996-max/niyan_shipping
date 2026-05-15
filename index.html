@@ -276,20 +276,27 @@
     border-color: var(--accent);
   }
 
-  .settings-link {
-    background: none;
-    border: none;
-    color: var(--text-mute);
-    cursor: pointer;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.05em;
-    padding: 6px 10px;
-    border-radius: 6px;
-    transition: all 0.15s;
-    flex-shrink: 0;
-  }
-  .settings-link:hover { color: var(--accent); background: var(--bg-card); }
+.settings-link {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-mute);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.15s;
+  backdrop-filter: blur(8px);
+}
+.settings-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
   .actions {
     display: flex;
