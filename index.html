@@ -68,32 +68,45 @@
 
   .container { max-width: 1040px; margin: 0 auto; }
 
-  .header { margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
-  .title-wrap { flex: 1; min-width: 260px; }
-  .title {
-    font-size: 34px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .title::before {
-    content: '◆';
-    font-size: 26px;
-    color: var(--accent);
-    -webkit-text-fill-color: var(--accent);
-  }
-  .subtitle {
-    margin-top: 6px;
-    color: var(--text-dim);
-    font-size: 13px;
-    letter-spacing: 0.02em;
-  }
+.header {
+  position: relative;
+  margin-bottom: 32px;
+  text-align: center;
+  padding-top: 4px;
+}
+.header-icon {
+  display: block;
+  margin: 0 auto 14px;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 16px rgba(247, 120, 186, 0.25));
+}
+.title-wrap { /* 不再需要 flex,保留 class 不影響邏輯 */ }
+.title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.title::before {
+  content: '◆';
+  font-size: 26px;
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+}
+.subtitle {
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
   .subtitle code {
     font-family: 'JetBrains Mono', monospace;
     color: var(--accent);
