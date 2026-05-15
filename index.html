@@ -281,21 +281,25 @@
   top: 16px;
   right: 16px;
   z-index: 50;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text-mute);
+  background: linear-gradient(135deg, var(--accent) 0%, #ff6bb5 100%);
+  border: none;
+  color: #0a0d14;
   cursor: pointer;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.05em;
-  padding: 6px 12px;
+  padding: 8px 14px;
   border-radius: 8px;
   transition: all 0.15s;
-  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px var(--accent-glow);
 }
 .settings-link:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px var(--accent-glow);
+}
+.settings-link:active {
+  transform: translateY(0);
 }
 
   .actions {
