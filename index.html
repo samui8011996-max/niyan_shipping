@@ -1288,15 +1288,42 @@ async function handleFile(file) {
       r["_類別"] = categorize(r);
     });
 
-    const prioMap = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, c.priority]));
-    rows.sort((a, b) => {
-      const pa = prioMap[a["_類別"]] ?? 0;
-      const pb = prioMap[b["_類別"]] ?? 0;
-      if (pa !== pb) return pa - pb;
-      const n1 = String(a["商品名稱"] ?? "").localeCompare(String(b["商品名稱"] ?? ""));
-      if (n1 !== 0) return n1;
-      return String(a["規格設定"] ?? "").localeCompare(String(b["規格設定"] ?? ""));
-    });
+  // 取「乾淨的品項名」作為排序鍵 → 同品項一定排一起
+// 例如「【泥研製所||辦公室小物】胖胖招財招福貓 (小)」和「【辦公室小物】胖胖招財招福貓 (小)」
+// 經過 REMOVE_PATTERNS 清理後會變成同字串,就能合併
+function cleanProductName(name) {
+  let s = String(name ?? "");
+  for (const pat of REMOVE_PATTERNS) s = s.split(pat).join("");
+  return s.replace(/\s+/g, " ").trim();
+}
+
+// 從規格設定 + 客製刻印 判斷「金運 / 招福」,金運在前
+function styleOrder(row) {
+  const hs = [row["規格設定"] ?? "", row["客製刻印選項"] ?? "", row["商品名稱"] ?? ""]
+    .map(String).join(" ");
+  if (hs.includes("金運")) return 0;
+  if (hs.includes("招福")) return 1;
+  return 2;
+}
+
+const prioMap = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, c.priority]));
+rows.sort((a, b) => {
+  // 1. 特殊類別優先序(黑熊 > 永生花 > 盆景 > 注意品項 > 雷雕 > 一般)
+  const pa = prioMap[a["_類別"]] ?? 0;
+  const pb = prioMap[b["_類別"]] ?? 0;
+  if (pa !== pb) return pa - pb;
+
+  // 2. 用「清理後的商品名稱」排,讓「【泥研製所||辦公室小物】」和「【辦公室小物】」合併
+  const n1 = cleanProductName(a["商品名稱"]).localeCompare(cleanProductName(b["商品名稱"]));
+  if (n1 !== 0) return n1;
+
+  // 3. 同品項內:金運 → 招福 → 其他
+  const s1 = styleOrder(a) - styleOrder(b);
+  if (s1 !== 0) return s1;
+
+  // 4. 最後再依規格設定排(顏色等)
+  return String(a["規格設定"] ?? "").localeCompare(String(b["規格設定"] ?? ""));
+});
 
     loadedRows = rows;
     renderStats(computeStats(rows));
