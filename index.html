@@ -1353,7 +1353,7 @@ rows.sort((a, b) => {
     document.getElementById("runBtn").disabled = false;
     const counts = lastStats.counts;
     const uploadableCount = UPLOAD_CATEGORIES.reduce((s, c) => s + (counts[c] ?? 0), 0);
-    document.getElementById("uploadBtn").disabled = uploadableCount === 0;
+    document.getElementById("uploadBtn").disabled = false;
     setStatus("status", "success", `✓ 已載入 ${rows.length} 筆資料,可執行匯出`);
 
     // 載入完成後比對問題訂單清單
