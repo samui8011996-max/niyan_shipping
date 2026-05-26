@@ -899,9 +899,7 @@
         <button id="uploadBtn" class="btn btn-gsheet" disabled onclick="uploadAllToSheet()">
           ↗  上傳到 Google Sheet
         </button>
-        <button id="uploadLineBtn" class="btn btn-gsheet" disabled onclick="uploadLineRegular()">
-  📋  上傳一般訂單數到出貨紀錄
-</button>
+      
       </div>
 
       <div id="status" class="status">等待選擇 LINE 訂單檔…</div>
@@ -1353,8 +1351,6 @@ rows.sort((a, b) => {
     loadedRows = rows;
     renderStats(computeStats(rows));
     document.getElementById("runBtn").disabled = false;
-    document.getElementById("uploadLineBtn").disabled = false;
-
     const counts = lastStats.counts;
     const uploadableCount = UPLOAD_CATEGORIES.reduce((s, c) => s + (counts[c] ?? 0), 0);
     document.getElementById("uploadBtn").disabled = uploadableCount === 0;
@@ -1737,12 +1733,13 @@ function uploadAllToSheet() {
     body: JSON.stringify({ action: "append", targets }),
   })
     .then(r => r.json())
-    .then(data => {
+.then(data => {
       if (data.ok) {
         const breakdown = Object.entries(data.results || {})
           .map(([c, r]) => r.ok ? `${c} ${r.count}` : `${c} 失敗(${r.error})`)
           .join(" · ");
         setStatus("status", "success", `✓ 已上傳 ${data.totalWritten} 筆 · ${breakdown}`);
+        uploadLineRegular();  // ← 加這行
       } else {
         setStatus("status", "error", `✗ 上傳失敗:${data.error || "未知錯誤"}`);
       }
@@ -2249,22 +2246,12 @@ document.getElementById("bcDetailInput").addEventListener("change", (e) => {
   function uploadLineRegular() {
   if (!lastStats) return;
   const url = getGsUrl();
-  if (!url) {
-    setStatus("status", "warn", "⚠ 請先在設定填入 Apps Script 網址");
-    openSettings();
-    return;
-  }
+  if (!url) return;
   const count = lastStats.regular;
-  if (count <= 0) {
-    setStatus("status", "warn", "⚠ 一般訂單數為 0，不需要上傳");
-    return;
-  }
-  const today = todayStr("-");   // 格式：2026-05-26
+  if (count <= 0) return;
+  const today = todayStr("-");
   const btn = document.getElementById("uploadLineBtn");
-  btn.disabled = true;
-  const orig = btn.textContent;
-  btn.textContent = "上傳中…";
-  setStatus("status", "loading", `上傳一般訂單數 ${count} 筆到出貨紀錄…`);
+  if (btn) { btn.disabled = true; }
 
   fetch(url, {
     method: "POST",
@@ -2279,20 +2266,18 @@ document.getElementById("bcDetailInput").addEventListener("change", (e) => {
     .then(data => {
       if (data.ok) {
         const msg = data.updated
-          ? `✓ 已累加，Line禮物 今日總計 ${data.total} 筆`
-          : `✓ 已新增，Line禮物 今日 ${data.total} 筆`;
+          ? `✓ 已上傳，Line禮物 今日累計 ${data.total} 筆`
+          : `✓ 已上傳，Line禮物 今日 ${data.total} 筆`;
         setStatus("status", "success", msg);
       } else {
-        setStatus("status", "error", `✗ 上傳失敗：${data.error || "未知錯誤"}`);
+        setStatus("status", "error", `✗ Line禮物上傳失敗：${data.error || "未知錯誤"}`);
       }
     })
-    .catch(err => setStatus("status", "error", `✗ ${err.message}`))
+    .catch(err => setStatus("status", "error", `✗ Line禮物上傳失敗：${err.message}`))
     .finally(() => {
-      btn.disabled = false;
-      btn.textContent = orig;
+      if (btn) { btn.disabled = false; }
     });
 }
-
   
 </script>
 </body>
