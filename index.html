@@ -1717,11 +1717,12 @@ function uploadAllToSheet() {
       totalCount += catRows.length;
     }
   });
-
-  if (totalCount === 0) {
-    setStatus("status", "warn", "⚠ 沒有可上傳的訂單");
-    return;
-  }
+  
+if (totalCount === 0) {
+  // 沒有分類訂單，但還是要上傳一般訂單數
+  uploadLineRegular();
+  return;
+}
 
   const catSummary = Object.entries(targets).map(([c, rs]) => `${c} ${rs.length}`).join(" · ");
   setStatus("status", "loading", `上傳中(${catSummary})…`);
