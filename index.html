@@ -899,6 +899,9 @@
         <button id="uploadBtn" class="btn btn-gsheet" disabled onclick="uploadAllToSheet()">
           ↗  上傳到 Google Sheet
         </button>
+        <button id="uploadLineBtn" class="btn btn-gsheet" disabled onclick="uploadLineRegular()">
+  📋  上傳一般訂單數到出貨紀錄
+</button>
       </div>
 
       <div id="status" class="status">等待選擇 LINE 訂單檔…</div>
@@ -1350,6 +1353,7 @@ rows.sort((a, b) => {
     loadedRows = rows;
     renderStats(computeStats(rows));
     document.getElementById("runBtn").disabled = false;
+    document.getElementById("uploadLineBtn").disabled = false;
 
     const counts = lastStats.counts;
     const uploadableCount = UPLOAD_CATEGORIES.reduce((s, c) => s + (counts[c] ?? 0), 0);
@@ -2240,6 +2244,56 @@ document.getElementById("bcDetailInput").addEventListener("change", (e) => {
   d.classList.remove("empty"); d.classList.add("has-file");
   handleBcDetail(file);
 });
+
+
+  function uploadLineRegular() {
+  if (!lastStats) return;
+  const url = getGsUrl();
+  if (!url) {
+    setStatus("status", "warn", "⚠ 請先在設定填入 Apps Script 網址");
+    openSettings();
+    return;
+  }
+  const count = lastStats.regular;
+  if (count <= 0) {
+    setStatus("status", "warn", "⚠ 一般訂單數為 0，不需要上傳");
+    return;
+  }
+  const today = todayStr("-");   // 格式：2026-05-26
+  const btn = document.getElementById("uploadLineBtn");
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = "上傳中…";
+  setStatus("status", "loading", `上傳一般訂單數 ${count} 筆到出貨紀錄…`);
+
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      action: "uploadLineRegular",
+      date: today,
+      count: count
+    })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const msg = data.updated
+          ? `✓ 已累加，Line禮物 今日總計 ${data.total} 筆`
+          : `✓ 已新增，Line禮物 今日 ${data.total} 筆`;
+        setStatus("status", "success", msg);
+      } else {
+        setStatus("status", "error", `✗ 上傳失敗：${data.error || "未知錯誤"}`);
+      }
+    })
+    .catch(err => setStatus("status", "error", `✗ ${err.message}`))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = orig;
+    });
+}
+
+  
 </script>
 </body>
 </html>
