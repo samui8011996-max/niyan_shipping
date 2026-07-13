@@ -1516,12 +1516,12 @@ function generateOutput() {
   setStatus("status", "loading", "產生出貨表中…");
   setTimeout(() => {
     try {
-      const EXCLUDE_FROM_LOCAL = new Set(["黑熊", "永生花", "盆景公仔組"]);
+      const EXCLUDE_FROM_LOCAL = new Set(["黑熊", "盆景公仔組"]);
       const exportRows = loadedRows.filter(r => !EXCLUDE_FROM_LOCAL.has(r["_類別"]));
 
       if (exportRows.length === 0) {
         setStatus("status", "warn",
-          `⚠ 全部 ${loadedRows.length} 筆都屬於黑熊/永生花/盆景公仔組,已不下載本地表(請用一鍵上傳)`);
+          `⚠ 全部 ${loadedRows.length} 筆都屬於黑熊/盆景公仔組,已不下載本地表(請用一鍵上傳)`);
         return;
       }
 
@@ -1602,7 +1602,7 @@ function generateOutput() {
       let msg = fileCount === 1
         ? `✓ 已下載黑貓出貨表_${today}.xlsx  (${total} 筆)`
         : `✓ 已下載 ${fileCount} 個檔案  (共 ${total} 筆)`;
-      if (excludedCount > 0) msg += `  · 另 ${excludedCount} 筆(黑熊/永生花/盆景)請用上傳`;
+      if (excludedCount > 0) msg += `  · 另 ${excludedCount} 筆(黑熊/盆景)請用上傳`;
       if (problemHitInExport > 0) msg += `  · 🟧 ${problemHitInExport} 筆問題訂單已橘色反白`;
       setStatus("status", "success", msg);
     } catch (e) {
