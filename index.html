@@ -1336,10 +1336,9 @@ function computeStats(rows) {
     }
   });
 
+  // 一般訂單 = 不屬於黑熊/永生花/盆景公仔組,而且不是離島寄送(離島改郵局寄,不算一般出貨)
   const excluded = new Set(["黑熊", "永生花", "盆景公仔組"]);
-  const excludedTotal = Object.entries(counts)
-    .filter(([n]) => excluded.has(n)).reduce((a, [_, v]) => a + v, 0);
-  const regular = rows.length - excludedTotal;
+  const regular = rows.filter(r => !excluded.has(r["_類別"]) && !r["_離島"]).length;
 
   return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders, offshore };
 }
