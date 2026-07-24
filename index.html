@@ -1219,7 +1219,9 @@ const SPECIAL_CATEGORIES = [
 const UPLOAD_CATEGORIES = ["雷雕", "黑熊", "永生花", "注意品項", "盆景公仔組"];
 
 // 離島寄送:地址含以下關鍵字 → 不用黑貓寄,改用郵局寄,另外上傳到「離島包裹」試算表
-const OFFSHORE_KEYWORDS = ["澎湖", "金門", "連江", "馬祖"];
+// 澎湖/金門/連江(馬祖)是縣級離島;綠島/蘭嶼(台東縣)、琉球(屏東縣小琉球)是鄉鎮級離島,
+// 所以用鄉鎮名比對,不能用「台東縣」「屏東縣」(會誤判整個縣的訂單)
+const OFFSHORE_KEYWORDS = ["澎湖", "金門", "連江", "馬祖", "綠島", "蘭嶼", "琉球"];
 const OFFSHORE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1eV6lcWJ1nEs-As32NU6iatYAih-NYQ5WZfGteWDlk5A/edit";
 
 function extractOffshoreCounty(address) {
