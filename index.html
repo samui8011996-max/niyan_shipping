@@ -1794,6 +1794,27 @@ function drawOffshoreLabel(row) {
     y += recvFontPx * 1.4;
   });
 
+  // ---- 備註(小字,訂單編號 + 訂購商品,跟黑貓備註同一套 _備註) ----
+  y += mmToPx(6);
+  const noteLabelFontPx = mmToPx(3.6);
+  ctx.font = `bold ${noteLabelFontPx}px "Noto Sans TC", sans-serif`;
+  ctx.fillText("備註", marginX, y);
+  y += noteLabelFontPx * 1.4;
+
+  const noteFontPx = mmToPx(3.2);
+  ctx.font = `${noteFontPx}px "Noto Sans TC", sans-serif`;
+  const orderId = String(row["訂單編號"] ?? "").trim();
+  const productNote = String(row["_備註"] ?? "").trim();
+  [
+    `訂單編號:${orderId}`,
+    `${productNote}`,
+  ].forEach(line => {
+    wrapCanvasText(ctx, line, contentW).forEach(l => {
+      ctx.fillText(l, marginX, y);
+      y += noteFontPx * 1.35;
+    });
+  });
+
   return canvas;
 }
 
