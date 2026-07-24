@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
   :root {
     --bg: #0a0d14;
@@ -235,6 +236,20 @@
     box-shadow: 0 6px 28px var(--accent-glow);
   }
   .btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+  .btn-lavender {
+    background: linear-gradient(135deg, #9575CD 0%, #B39DDB 100%);
+    color: #0a0d14;
+    padding: 13px 26px;
+    font-size: 15px;
+    font-weight: 700;
+    box-shadow: 0 4px 20px rgba(149, 117, 205, 0.35);
+  }
+  .btn-lavender:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(149, 117, 205, 0.45);
+  }
+  .btn-lavender:active:not(:disabled) { transform: translateY(0); }
 
   .btn-gsheet {
     background: transparent;
@@ -899,10 +914,13 @@
         <button id="runBtn" class="btn btn-primary" disabled onclick="generateOutput()">
           ▶  下載黑貓出貨表
         </button>
+        <button id="offshorePdfBtn" class="btn btn-lavender" disabled onclick="generateOffshorePdf()">
+          🏝  產離島貼紙 PDF
+        </button>
         <button id="uploadBtn" class="btn btn-gsheet" disabled onclick="uploadAllToSheet()">
           ↗  上傳到 Google Sheet
         </button>
-      
+
       </div>
 
       <div id="status" class="status">等待選擇 LINE 訂單檔…</div>
@@ -1224,6 +1242,37 @@ const UPLOAD_CATEGORIES = ["雷雕", "黑熊", "永生花", "注意品項", "盆
 const OFFSHORE_KEYWORDS = ["澎湖", "金門", "連江", "馬祖", "綠島", "蘭嶼", "琉球"];
 const OFFSHORE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1eV6lcWJ1nEs-As32NU6iatYAih-NYQ5WZfGteWDlk5A/edit";
 
+// 離島出貨貼紙(郵局寄)固定寄件人資訊,貼紙尺寸 100mm x 150mm
+const OFFSHORE_SENDER = {
+  zip: "356",
+  address: "苗栗縣後龍鎮校椅里造豐路311號",
+  name: "LINE禮物泥研製所",
+  phone: "037480616",
+};
+const OFFSHORE_LABEL_MM = { w: 100, h: 150 };
+
+// 離島鄉鎮 → 3 碼郵遞區號(收件人地址標籤用,不含 suffix 比對,避免漏抓)
+const OFFSHORE_ZIP_MAP = {
+  // 澎湖縣
+  "馬公": "880", "西嶼": "881", "望安": "882", "七美": "883", "白沙": "884", "湖西": "885",
+  // 金門縣
+  "金沙": "890", "金湖": "891", "金寧": "892", "金城": "893", "烈嶼": "894", "烏坵": "896",
+  // 連江縣(馬祖)
+  "南竿": "209", "北竿": "210", "莒光": "211", "東引": "212",
+  // 台東縣
+  "綠島": "951", "蘭嶼": "952",
+  // 屏東縣
+  "琉球": "929",
+};
+
+function extractOffshoreZip(address) {
+  const s = String(address ?? "");
+  for (const [town, zip] of Object.entries(OFFSHORE_ZIP_MAP)) {
+    if (s.includes(town)) return zip;
+  }
+  return "";
+}
+
 function extractOffshoreCounty(address) {
   const s = String(address ?? "");
   for (const kw of OFFSHORE_KEYWORDS) {
@@ -1405,6 +1454,7 @@ rows.sort((a, b) => {
     const counts = lastStats.counts;
     const uploadableCount = UPLOAD_CATEGORIES.reduce((s, c) => s + (counts[c] ?? 0), 0);
     document.getElementById("uploadBtn").disabled = false;
+    document.getElementById("offshorePdfBtn").disabled = !rows.some(r => r["_離島"]);
     setStatus("status", "success", `✓ 已載入 ${rows.length} 筆資料,可執行匯出`);
 
     // 載入完成後比對問題訂單清單
@@ -1413,6 +1463,7 @@ rows.sort((a, b) => {
     loadedRows = null;
     document.getElementById("runBtn").disabled = true;
     document.getElementById("uploadBtn").disabled = true;
+    document.getElementById("offshorePdfBtn").disabled = true;
     setStatus("status", "error", `✗ 讀取失敗:${e.message}`);
     resetShippingStats();
     hideProblemAlert();
@@ -1633,6 +1684,160 @@ function generateOutput() {
       console.error(e);
     }
   }, 50);
+}
+
+// ===================================================================
+// 離島出貨貼紙 PDF(100mm x 150mm,寄件人固定、收件人放大放下面)
+// 多筆訂單時壓成同一個 PDF,一筆一頁
+// ===================================================================
+function wrapCanvasText(ctx, text, maxWidth) {
+  const chars = String(text ?? "").split("");
+  const lines = [];
+  let line = "";
+  for (const ch of chars) {
+    const test = line + ch;
+    if (line && ctx.measureText(test).width > maxWidth) {
+      lines.push(line);
+      line = ch;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length > 0 ? lines : [""];
+}
+
+async function ensureFontsLoaded() {
+  if (!document.fonts) return;
+  try {
+    await Promise.all([
+      document.fonts.load('400 100px "Noto Sans TC"'),
+      document.fonts.load('700 100px "Noto Sans TC"'),
+    ]);
+    await document.fonts.ready;
+  } catch (_) { /* 字型載入失敗就用瀏覽器預設字型,不擋流程 */ }
+}
+
+function drawOffshoreLabel(row) {
+  const DPI = 300;
+  const mmToPx = mm => Math.round(mm / 25.4 * DPI);
+  const W = mmToPx(OFFSHORE_LABEL_MM.w);
+  const H = mmToPx(OFFSHORE_LABEL_MM.h);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#000000";
+  ctx.textBaseline = "top";
+
+  const marginX = mmToPx(8);
+  const contentW = W - marginX * 2;
+  let y = mmToPx(8);
+
+  // ---- 寄件人(固定資訊,字較小) ----
+  const senderFontPx = mmToPx(3.6);
+  ctx.font = `${senderFontPx}px "Noto Sans TC", sans-serif`;
+  [
+    "寄件人",
+    OFFSHORE_SENDER.name,
+    `${OFFSHORE_SENDER.zip} ${OFFSHORE_SENDER.address}`,
+    OFFSHORE_SENDER.phone,
+  ].forEach(line => {
+    wrapCanvasText(ctx, line, contentW).forEach(l => {
+      ctx.fillText(l, marginX, y);
+      y += senderFontPx * 1.35;
+    });
+  });
+
+  // ---- 分隔線 ----
+  y += mmToPx(6);
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = mmToPx(0.3);
+  ctx.beginPath();
+  ctx.moveTo(marginX, y);
+  ctx.lineTo(W - marginX, y);
+  ctx.stroke();
+  y += mmToPx(10);
+
+  // ---- 收件人(放大,放在寄件人下面) ----
+  const recvLabelFontPx = mmToPx(6);
+  const recvFontPx = mmToPx(8.5);
+
+  ctx.font = `bold ${recvLabelFontPx}px "Noto Sans TC", sans-serif`;
+  ctx.fillText("收件人", marginX, y);
+  y += recvLabelFontPx * 1.4;
+
+  ctx.font = `bold ${recvFontPx}px "Noto Sans TC", sans-serif`;
+  const name = String(row["收件人姓名"] ?? "").trim();
+  wrapCanvasText(ctx, name, contentW).forEach(l => {
+    ctx.fillText(l, marginX, y);
+    y += recvFontPx * 1.4;
+  });
+
+  y += mmToPx(4);
+  const addr = String(row["配送地址"] ?? "").trim();
+  const zip = extractOffshoreZip(addr);
+  const addrWithZip = zip ? `${zip} ${addr}` : addr;
+  wrapCanvasText(ctx, addrWithZip, contentW).forEach(l => {
+    ctx.fillText(l, marginX, y);
+    y += recvFontPx * 1.4;
+  });
+
+  y += mmToPx(4);
+  const phone = String(row["收件人聯絡電話"] ?? "").trim();
+  wrapCanvasText(ctx, phone, contentW).forEach(l => {
+    ctx.fillText(l, marginX, y);
+    y += recvFontPx * 1.4;
+  });
+
+  return canvas;
+}
+
+async function generateOffshorePdf() {
+  if (!loadedRows) return;
+  const rows = loadedRows.filter(r => r["_離島"]);
+  if (rows.length === 0) {
+    setStatus("status", "warn", "⚠ 目前沒有離島寄送的訂單");
+    return;
+  }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    setStatus("status", "error", "✗ PDF 產生元件載入失敗,請檢查網路連線後重新整理頁面");
+    return;
+  }
+
+  const btn = document.getElementById("offshorePdfBtn");
+  btn.disabled = true;
+  setStatus("status", "loading", `產生離島貼紙 PDF 中(${rows.length} 筆)…`);
+
+  try {
+    await ensureFontsLoaded();
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: [OFFSHORE_LABEL_MM.w, OFFSHORE_LABEL_MM.h],
+    });
+
+    rows.forEach((row, idx) => {
+      if (idx > 0) doc.addPage([OFFSHORE_LABEL_MM.w, OFFSHORE_LABEL_MM.h], "portrait");
+      const canvas = drawOffshoreLabel(row);
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
+      doc.addImage(imgData, "JPEG", 0, 0, OFFSHORE_LABEL_MM.w, OFFSHORE_LABEL_MM.h);
+    });
+
+    doc.save(`離島出貨貼紙_${todayStr()}.pdf`);
+    setStatus("status", "success", `✓ 已產生離島貼紙 PDF(共 ${rows.length} 頁)`);
+  } catch (e) {
+    setStatus("status", "error", `✗ 產生 PDF 失敗:${e.message}`);
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ===================================================================
