@@ -1905,7 +1905,7 @@ function openProblemSheet() {
 // 設定
 // ===================================================================
 const GS_URL_KEY = "niyan_gs_url";
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxHPxYGa6Rhg4JoboWuKZIUxP8NUMrtaIN0toRVwqbH__Q3HrxuznyGxxpLSijJ53df/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbz-rcuFHDO-mENW4ZY2Sn1bTXIEZGkoIjVF3KELyt3vhu4i7AgEetGdSCx_ZtYZ8ovk/exec";
 
 function openSettings() {
   document.getElementById("gsUrlInput").value = localStorage.getItem(GS_URL_KEY) || DEFAULT_GS_URL;
@@ -2035,7 +2035,14 @@ if (totalCount === 0) {
 .then(data => {
       if (data.ok) {
         const breakdown = Object.entries(data.results || {})
-          .map(([c, r]) => r.ok ? `${c} ${r.count}` : `${c} 失敗(${r.error})`)
+          .map(([c, r]) => {
+            if (!r.ok) return `${c} 失敗(${r.error})`;
+            let s = `${c} ${r.count}`;
+            if (r.packingSync) {
+              s += r.packingSync.ok ? "(已同步包貨郵局)" : `(包貨同步失敗:${r.packingSync.error || "未知錯誤"})`;
+            }
+            return s;
+          })
           .join(" · ");
         setStatus("status", "success", `✓ 已上傳 ${data.totalWritten} 筆 · ${breakdown}`);
         uploadLineRegular();  // ← 加這行
