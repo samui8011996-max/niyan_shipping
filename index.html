@@ -950,7 +950,7 @@
         <div class="stat-card normal">
           <div class="stat-label">一般訂單</div>
           <div><span id="stat-regular" class="stat-number">—</span><span class="stat-unit">筆</span></div>
-          <div class="stat-sub">含注意品項、雷雕、其他訂單</div>
+          <div class="stat-sub">含注意品項、雷雕、永生花、其他訂單</div>
         </div>
         <div class="stat-card cyan clickable" onclick="openSheet('注意品項')" title="點我開啟注意品項試算表">
           <div class="stat-label">注意品項</div>
@@ -1384,8 +1384,8 @@ function computeStats(rows) {
     }
   });
 
-  // 一般訂單 = 不屬於黑熊/永生花/盆景公仔組,而且不是離島•郵局(離島改郵局寄,不算一般出貨)
-  const excluded = new Set(["黑熊", "永生花", "盆景公仔組"]);
+  // 一般訂單 = 不屬於黑熊/盆景公仔組,而且不是離島•郵局(離島改郵局寄,不算一般出貨);永生花算一般訂單
+  const excluded = new Set(["黑熊", "盆景公仔組"]);
   const regular = rows.filter(r => !excluded.has(r["_類別"]) && !r["_離島"]).length;
 
   return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders, offshore };
