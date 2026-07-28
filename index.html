@@ -1859,7 +1859,7 @@ async function generateOffshorePdf() {
 }
 
 // ===================================================================
-// 試算表網址(從 localStorage 讀;離島•郵局若未設定則退回下方寫死的預設網址)
+// 試算表網址(從 localStorage 讀;沒設定過就退回下方寫死的預設網址)
 // ===================================================================
 const SHEET_URL_KEYS = {
   "雷雕":       "niyan_sheet_url_laser",
@@ -1870,12 +1870,22 @@ const SHEET_URL_KEYS = {
   "問題訂單":   "niyan_sheet_url_problem",
 };
 
+// 寫死的預設試算表網址,對應 gs 後端 SHEETS 設定裡的 spreadsheetId
+const DEFAULT_SHEET_URLS = {
+  "雷雕":       "https://docs.google.com/spreadsheets/d/1yWvDnbI9w1ukexlaZWNAOyPHUS7JKMgGIDPV83wlSQ8/edit",
+  "黑熊":       "https://docs.google.com/spreadsheets/d/1SVuzdacjbJrX82pIRkkdB7B1kD3pF9nggkynzxzUTII/edit",
+  "永生花":     "https://docs.google.com/spreadsheets/d/1ihfosKQwK8B9IA1768tHEACykPxHuTgzqd26kkA2YwM/edit",
+  "注意品項":   "https://docs.google.com/spreadsheets/d/1dPGbWNIcslooHOkYtwIPc-moh88z1UR0aA1gTwZ-prU/edit",
+  "盆景公仔組": "https://docs.google.com/spreadsheets/d/1hhx_HqK9m9XUxKQlGXcRYdY20Qpfg_zN9vTJW1U44Ts/edit",
+  "離島•郵局":  OFFSHORE_SHEET_URL,
+  "問題訂單":   "https://docs.google.com/spreadsheets/d/1lbEXKYvUzFljxdZmBdg1K0GzOahbnBH39bbANMZ34d4/edit",
+};
+
 function getSheetUrl(category) {
   const key = SHEET_URL_KEYS[category];
   const stored = key ? (localStorage.getItem(key) || "") : "";
   if (stored) return stored;
-  if (category === "離島•郵局") return OFFSHORE_SHEET_URL;  // 預設寫死的離島包裹試算表
-  return "";
+  return DEFAULT_SHEET_URLS[category] || "";
 }
 
 function openSheet(category) {
@@ -1902,7 +1912,7 @@ function openProblemSheet() {
 // 設定
 // ===================================================================
 // Apps Script 網址寫死,不再開放使用者設定/儲存
-const GS_URL = "https://script.google.com/macros/s/AKfycbxOol64qQJgy6RedQUpyJRI_WaGjzjZr7YuD1wfeGfWJ7yPNhys1P1knw9plWTzC8w/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbxa4JEB143zhe9fr8tOnJW19CB7UNYPurmWBkOefk-euJvkj-hBHTqzz2x3w0TVKfYK/exec";
 
 function openSettings() {
   for (const cat of Object.keys(SHEET_URL_KEYS)) {
