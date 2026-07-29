@@ -1237,6 +1237,13 @@ const UPLOAD_CATEGORIES = ["雷雕", "黑熊", "永生花", "注意品項", "盆
 // 澎湖/金門/連江(馬祖)是縣級離島;綠島/蘭嶼(台東縣)、琉球(屏東縣小琉球)是鄉鎮級離島,
 // 所以用鄉鎮名比對,不能用「台東縣」「屏東縣」(會誤判整個縣的訂單)
 const OFFSHORE_KEYWORDS = ["澎湖", "金門", "連江", "馬祖", "綠島", "蘭嶼", "琉球"];
+// 關鍵字後面必須緊接著這個正式行政區尾碼,才算真的命中離島(例如「板橋…金門街」
+// 只是路名裡剛好有「金門」兩字,不是金門縣,不能誤判成離島)。
+// 「馬祖」不是正式行政區名(官方是連江縣),沒有固定尾碼可比對,維持原本寬鬆比對。
+const OFFSHORE_KEYWORD_SUFFIX = {
+  "澎湖": "縣", "金門": "縣", "連江": "縣",
+  "綠島": "鄉", "蘭嶼": "鄉", "琉球": "鄉",
+};
 const OFFSHORE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1eV6lcWJ1nEs-As32NU6iatYAih-NYQ5WZfGteWDlk5A/edit";
 
 // 離島出貨貼紙(郵局寄)固定寄件人資訊,貼紙尺寸 100mm x 150mm
@@ -1273,7 +1280,11 @@ function extractOffshoreZip(address) {
 function extractOffshoreCounty(address) {
   const s = String(address ?? "");
   for (const kw of OFFSHORE_KEYWORDS) {
-    if (s.includes(kw)) return kw;
+    const idx = s.indexOf(kw);
+    if (idx < 0) continue;
+    const suffix = OFFSHORE_KEYWORD_SUFFIX[kw];
+    if (suffix && s[idx + kw.length] !== suffix) continue;  // 只是路名剛好同字,不是離島縣市
+    return kw;
   }
   return null;
 }
@@ -1318,25 +1329,37 @@ function buildNote(row) {
   return note.replace(/\s+/g, " ").trim();
 }
 
-function categorize(row) {
+// 一筆訂單可能同時符合多個特殊分類(例如品名同時有「巨物」和「雷雕」關鍵字)
+// → 要同時上傳到兩邊廠商試算表,所以回傳「全部命中」的分類,依優先序排列
+function categorizeAll(row) {
   const hs = [
     row["商品名稱"] ?? "",
     row["規格設定"] ?? "",
     row["客製刻印選項"] ?? "",
     row["_備註"] ?? "",
   ].map(String).join(" ");
+  const matches = [];
   for (const cat of SPECIAL_CATEGORIES) {
     for (const kw of cat.keys) {
-      if (hs.includes(kw)) return cat.name;
+      if (hs.includes(kw)) { matches.push(cat.name); break; }
     }
   }
-  return null;
+  return matches;
+}
+
+// 單一分類(給排序、上色、字卡優先序用):取命中分類中優先序最高的一個
+function categorize(row) {
+  const matches = categorizeAll(row);
+  return matches.length > 0 ? matches[0] : null;
 }
 
 // 計算各種數量(含黑熊細分、永生花細分、植物盆)
 function computeStats(rows) {
   const counts = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, 0]));
-  rows.forEach(r => { if (r["_類別"] && counts[r["_類別"]] !== undefined) counts[r["_類別"]]++; });
+  rows.forEach(r => {
+    const cats = r["_類別列表"] && r["_類別列表"].length ? r["_類別列表"] : (r["_類別"] ? [r["_類別"]] : []);
+    cats.forEach(c => { if (counts[c] !== undefined) counts[c]++; });
+  });
 
   // ---- 細分統計 ----
   // bear / plant 的子項是「數量」(給廠商對照用)
@@ -1404,7 +1427,8 @@ async function handleFile(file) {
 
     rows.forEach(r => {
       r["_備註"] = buildNote(r);
-      r["_類別"] = categorize(r);
+      r["_類別列表"] = categorizeAll(r);
+      r["_類別"] = r["_類別列表"][0] || null;
       r["_離島"] = extractOffshoreCounty(r["配送地址"]);
     });
 
@@ -1967,7 +1991,9 @@ function uploadAllToSheet() {
   let totalCount = 0;
 
   UPLOAD_CATEGORIES.forEach(cat => {
-    const catRows = loadedRows.filter(r => r["_類別"] === cat);
+    // 用完整命中清單比對,一筆訂單如果同時符合兩個分類(例如巨物+雷雕),
+    // 兩邊廠商試算表都要收到這筆
+    const catRows = loadedRows.filter(r => (r["_類別列表"] || []).includes(cat));
     if (catRows.length > 0) {
       targets[cat] = catRows.map(r => {
         const base = {
