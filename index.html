@@ -11,7 +11,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
   :root {
     --bg: #0a0d14;
@@ -46,8 +45,6 @@
     --cat-pink-text: #f9a8d4;  --cat-pink-num: #f472b6;
     --cat-orange-bg: #2a1a08;  --cat-orange-border: #FF8F00;
     --cat-orange-text: #FFCC80;--cat-orange-num: #FFA726;
-    --cat-lavender-bg: #201a30; --cat-lavender-border: #9575CD;
-    --cat-lavender-text: #D1C4E9; --cat-lavender-num: #B39DDB;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -236,20 +233,6 @@
     box-shadow: 0 6px 28px var(--accent-glow);
   }
   .btn-primary:active:not(:disabled) { transform: translateY(0); }
-
-  .btn-lavender {
-    background: linear-gradient(135deg, #9575CD 0%, #B39DDB 100%);
-    color: #0a0d14;
-    padding: 13px 26px;
-    font-size: 15px;
-    font-weight: 700;
-    box-shadow: 0 4px 20px rgba(149, 117, 205, 0.35);
-  }
-  .btn-lavender:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 28px rgba(149, 117, 205, 0.45);
-  }
-  .btn-lavender:active:not(:disabled) { transform: translateY(0); }
 
   .btn-gsheet {
     background: transparent;
@@ -506,7 +489,6 @@
   .stat-card.gray    { background: var(--cat-gray-bg); border-color: var(--cat-gray-border); --stat-label-color: var(--cat-gray-text); --stat-num-color: var(--cat-gray-num); --glow: rgba(189, 189, 189, 0.2); }
   .stat-card.pink    { background: var(--cat-pink-bg); border-color: var(--cat-pink-border); --stat-label-color: var(--cat-pink-text); --stat-num-color: var(--cat-pink-num); --glow: rgba(236, 72, 153, 0.3); }
   .stat-card.orange  { background: var(--cat-orange-bg); border-color: var(--cat-orange-border); --stat-label-color: var(--cat-orange-text); --stat-num-color: var(--cat-orange-num); --glow: rgba(255, 143, 0, 0.35); }
-  .stat-card.lavender { background: var(--cat-lavender-bg); border-color: var(--cat-lavender-border); --stat-label-color: var(--cat-lavender-text); --stat-num-color: var(--cat-lavender-num); --glow: rgba(149, 117, 205, 0.35); }
 
   .footer {
     margin-top: 36px;
@@ -914,13 +896,10 @@
         <button id="runBtn" class="btn btn-primary" disabled onclick="generateOutput()">
           ▶  下載黑貓出貨表
         </button>
-        <button id="offshorePdfBtn" class="btn btn-lavender" disabled onclick="generateOffshorePdf()">
-          🏝  產離島貼紙 PDF
-        </button>
         <button id="uploadBtn" class="btn btn-gsheet" disabled onclick="uploadAllToSheet()">
           ↗  上傳到 Google Sheet
         </button>
-
+      
       </div>
 
       <div id="status" class="status">等待選擇 LINE 訂單檔…</div>
@@ -967,10 +946,10 @@
           <div><span id="stat-bear" class="stat-number">—</span><span class="stat-unit">筆</span></div>
           <div class="stat-sub">點我 → 開啟試算表</div>
         </div>
-        <div class="stat-card lavender clickable" onclick="openSheet('離島寄送')" title="點我開啟離島包裹試算表">
-          <div class="stat-label">離島寄送</div>
-          <div><span id="stat-offshore" class="stat-number">—</span><span class="stat-unit">筆</span></div>
-          <div class="stat-sub">改郵局寄 · 點我 → 開啟試算表</div>
+        <div class="stat-card yellow clickable" onclick="openSheet('永生花')" title="點我開啟永生花試算表">
+          <div class="stat-label">永生花</div>
+          <div><span id="stat-flower" class="stat-number">—</span><span class="stat-unit">筆</span></div>
+          <div class="stat-sub">點我 → 開啟試算表</div>
         </div>
         <div class="stat-card green clickable" onclick="openSheet('盆景公仔組')" title="點我開啟盆景試算表">
           <div class="stat-label">盆景公仔組</div>
@@ -1137,8 +1116,8 @@
       <label>黑熊</label>
       <input type="text" id="sheetUrl_黑熊" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
 
-      <label>離島寄送</label>
-      <input type="text" id="sheetUrl_離島寄送" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+      <label>永生花</label>
+      <input type="text" id="sheetUrl_永生花" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
 
       <label>注意品項</label>
       <input type="text" id="sheetUrl_注意品項" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
@@ -1236,51 +1215,6 @@ const SPECIAL_CATEGORIES = [
 // 要上傳到 Google Sheet 的分類
 const UPLOAD_CATEGORIES = ["雷雕", "黑熊", "永生花", "注意品項", "盆景公仔組"];
 
-// 離島寄送:地址含以下關鍵字 → 不用黑貓寄,改用郵局寄,另外上傳到「離島包裹」試算表
-// 澎湖/金門/連江(馬祖)是縣級離島;綠島/蘭嶼(台東縣)、琉球(屏東縣小琉球)是鄉鎮級離島,
-// 所以用鄉鎮名比對,不能用「台東縣」「屏東縣」(會誤判整個縣的訂單)
-const OFFSHORE_KEYWORDS = ["澎湖", "金門", "連江", "馬祖", "綠島", "蘭嶼", "琉球"];
-const OFFSHORE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1eV6lcWJ1nEs-As32NU6iatYAih-NYQ5WZfGteWDlk5A/edit";
-
-// 離島出貨貼紙(郵局寄)固定寄件人資訊,貼紙尺寸 100mm x 150mm
-const OFFSHORE_SENDER = {
-  zip: "356",
-  address: "苗栗縣後龍鎮校椅里造豐路311號",
-  name: "LINE禮物泥研製所",
-  phone: "037480616",
-};
-const OFFSHORE_LABEL_MM = { w: 100, h: 150 };
-
-// 離島鄉鎮 → 3 碼郵遞區號(收件人地址標籤用,不含 suffix 比對,避免漏抓)
-const OFFSHORE_ZIP_MAP = {
-  // 澎湖縣
-  "馬公": "880", "西嶼": "881", "望安": "882", "七美": "883", "白沙": "884", "湖西": "885",
-  // 金門縣
-  "金沙": "890", "金湖": "891", "金寧": "892", "金城": "893", "烈嶼": "894", "烏坵": "896",
-  // 連江縣(馬祖)
-  "南竿": "209", "北竿": "210", "莒光": "211", "東引": "212",
-  // 台東縣
-  "綠島": "951", "蘭嶼": "952",
-  // 屏東縣
-  "琉球": "929",
-};
-
-function extractOffshoreZip(address) {
-  const s = String(address ?? "");
-  for (const [town, zip] of Object.entries(OFFSHORE_ZIP_MAP)) {
-    if (s.includes(town)) return zip;
-  }
-  return "";
-}
-
-function extractOffshoreCounty(address) {
-  const s = String(address ?? "");
-  for (const kw of OFFSHORE_KEYWORDS) {
-    if (s.includes(kw)) return kw;
-  }
-  return null;
-}
-
 const TEMPLATE_HEADERS = [
   "收件人姓名", "收件人電話", "收件人手機", "收件人地址",
   "代收金額或到付", "件數", "品名(詳參數表)", "備註", "訂單編號",
@@ -1350,11 +1284,8 @@ function computeStats(rows) {
   const flowerCombos = new Map();   // ex: "粉|黃金運貓" => 3
   const plant = { beige: 0, green: 0, other: 0 };
   let plantOrders = 0;
-  let offshore = 0;
 
   rows.forEach(r => {
-    if (r["_離島"]) offshore++;
-
     const code = String(r["商品編號"] ?? "").trim();
     const qty = parseInt(r["數量"], 10) || 1;
 
@@ -1387,11 +1318,12 @@ function computeStats(rows) {
     }
   });
 
-  // 一般訂單 = 不屬於黑熊/永生花/盆景公仔組,而且不是離島寄送(離島改郵局寄,不算一般出貨)
   const excluded = new Set(["黑熊", "永生花", "盆景公仔組"]);
-  const regular = rows.filter(r => !excluded.has(r["_類別"]) && !r["_離島"]).length;
+  const excludedTotal = Object.entries(counts)
+    .filter(([n]) => excluded.has(n)).reduce((a, [_, v]) => a + v, 0);
+  const regular = rows.length - excludedTotal;
 
-  return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders, offshore };
+  return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders };
 }
 
 async function handleFile(file) {
@@ -1408,7 +1340,6 @@ async function handleFile(file) {
     rows.forEach(r => {
       r["_備註"] = buildNote(r);
       r["_類別"] = categorize(r);
-      r["_離島"] = extractOffshoreCounty(r["配送地址"]);
     });
 
   // 取「乾淨的品項名」作為排序鍵 → 同品項一定排一起
@@ -1454,7 +1385,6 @@ rows.sort((a, b) => {
     const counts = lastStats.counts;
     const uploadableCount = UPLOAD_CATEGORIES.reduce((s, c) => s + (counts[c] ?? 0), 0);
     document.getElementById("uploadBtn").disabled = false;
-    document.getElementById("offshorePdfBtn").disabled = !rows.some(r => r["_離島"]);
     setStatus("status", "success", `✓ 已載入 ${rows.length} 筆資料,可執行匯出`);
 
     // 載入完成後比對問題訂單清單
@@ -1463,7 +1393,6 @@ rows.sort((a, b) => {
     loadedRows = null;
     document.getElementById("runBtn").disabled = true;
     document.getElementById("uploadBtn").disabled = true;
-    document.getElementById("offshorePdfBtn").disabled = true;
     setStatus("status", "error", `✗ 讀取失敗:${e.message}`);
     resetShippingStats();
     hideProblemAlert();
@@ -1474,7 +1403,6 @@ function renderStats(s) {
   lastStats = s;
   document.getElementById("stat-total").textContent = s.total;
   document.getElementById("stat-regular").textContent = s.regular;
-  document.getElementById("stat-offshore").textContent = s.offshore ?? 0;
 
   // 字卡一律顯示訂單筆數
   SPECIAL_CATEGORIES.forEach(c => {
@@ -1561,7 +1489,7 @@ function renderStats(s) {
 
 function resetShippingStats() {
   lastStats = null;
-  ["stat-total", "stat-regular", "stat-bonsai", "stat-offshore"].forEach(id => {
+  ["stat-total", "stat-regular", "stat-bonsai"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = "—";
   });
@@ -1591,11 +1519,11 @@ function generateOutput() {
   setTimeout(() => {
     try {
       const EXCLUDE_FROM_LOCAL = new Set(["黑熊", "盆景公仔組"]);
-      const exportRows = loadedRows.filter(r => !EXCLUDE_FROM_LOCAL.has(r["_類別"]) && !r["_離島"]);
+      const exportRows = loadedRows.filter(r => !EXCLUDE_FROM_LOCAL.has(r["_類別"]));
 
       if (exportRows.length === 0) {
         setStatus("status", "warn",
-          `⚠ 全部 ${loadedRows.length} 筆都屬於黑熊/盆景公仔組/離島寄送,已不下載本地表(請用一鍵上傳)`);
+          `⚠ 全部 ${loadedRows.length} 筆都屬於黑熊/盆景公仔組,已不下載本地表(請用一鍵上傳)`);
         return;
       }
 
@@ -1676,7 +1604,7 @@ function generateOutput() {
       let msg = fileCount === 1
         ? `✓ 已下載黑貓出貨表_${today}.xlsx  (${total} 筆)`
         : `✓ 已下載 ${fileCount} 個檔案  (共 ${total} 筆)`;
-      if (excludedCount > 0) msg += `  · 另 ${excludedCount} 筆(黑熊/盆景/離島)請用上傳`;
+      if (excludedCount > 0) msg += `  · 另 ${excludedCount} 筆(黑熊/盆景)請用上傳`;
       if (problemHitInExport > 0) msg += `  · 🟧 ${problemHitInExport} 筆問題訂單已橘色反白`;
       setStatus("status", "success", msg);
     } catch (e) {
@@ -1687,198 +1615,20 @@ function generateOutput() {
 }
 
 // ===================================================================
-// 離島出貨貼紙 PDF(100mm x 150mm,寄件人固定、收件人放大放下面)
-// 多筆訂單時壓成同一個 PDF,一筆一頁
-// ===================================================================
-function wrapCanvasText(ctx, text, maxWidth) {
-  const chars = String(text ?? "").split("");
-  const lines = [];
-  let line = "";
-  for (const ch of chars) {
-    const test = line + ch;
-    if (line && ctx.measureText(test).width > maxWidth) {
-      lines.push(line);
-      line = ch;
-    } else {
-      line = test;
-    }
-  }
-  if (line) lines.push(line);
-  return lines.length > 0 ? lines : [""];
-}
-
-async function ensureFontsLoaded() {
-  if (!document.fonts) return;
-  try {
-    await Promise.all([
-      document.fonts.load('400 100px "Noto Sans TC"'),
-      document.fonts.load('700 100px "Noto Sans TC"'),
-    ]);
-    await document.fonts.ready;
-  } catch (_) { /* 字型載入失敗就用瀏覽器預設字型,不擋流程 */ }
-}
-
-function drawOffshoreLabel(row) {
-  const DPI = 300;
-  const mmToPx = mm => Math.round(mm / 25.4 * DPI);
-  const W = mmToPx(OFFSHORE_LABEL_MM.w);
-  const H = mmToPx(OFFSHORE_LABEL_MM.h);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#000000";
-  ctx.textBaseline = "top";
-
-  const marginX = mmToPx(8);
-  const contentW = W - marginX * 2;
-  let y = mmToPx(8);
-
-  // ---- 寄件人(固定資訊,字較小) ----
-  const senderFontPx = mmToPx(3.6);
-  ctx.font = `${senderFontPx}px "Noto Sans TC", sans-serif`;
-  [
-    "寄件人",
-    OFFSHORE_SENDER.name,
-    `${OFFSHORE_SENDER.zip} ${OFFSHORE_SENDER.address}`,
-    OFFSHORE_SENDER.phone,
-  ].forEach(line => {
-    wrapCanvasText(ctx, line, contentW).forEach(l => {
-      ctx.fillText(l, marginX, y);
-      y += senderFontPx * 1.35;
-    });
-  });
-
-  // ---- 分隔線 ----
-  y += mmToPx(6);
-  ctx.strokeStyle = "#000000";
-  ctx.lineWidth = mmToPx(0.3);
-  ctx.beginPath();
-  ctx.moveTo(marginX, y);
-  ctx.lineTo(W - marginX, y);
-  ctx.stroke();
-  y += mmToPx(10);
-
-  // ---- 收件人(放大,放在寄件人下面) ----
-  const recvLabelFontPx = mmToPx(6);
-  const recvFontPx = mmToPx(8.5);
-
-  ctx.font = `bold ${recvLabelFontPx}px "Noto Sans TC", sans-serif`;
-  ctx.fillText("收件人", marginX, y);
-  y += recvLabelFontPx * 1.4;
-
-  ctx.font = `bold ${recvFontPx}px "Noto Sans TC", sans-serif`;
-  const name = String(row["收件人姓名"] ?? "").trim();
-  wrapCanvasText(ctx, name, contentW).forEach(l => {
-    ctx.fillText(l, marginX, y);
-    y += recvFontPx * 1.4;
-  });
-
-  y += mmToPx(4);
-  const addr = String(row["配送地址"] ?? "").trim();
-  const zip = extractOffshoreZip(addr);
-  const addrWithZip = zip ? `${zip} ${addr}` : addr;
-  wrapCanvasText(ctx, addrWithZip, contentW).forEach(l => {
-    ctx.fillText(l, marginX, y);
-    y += recvFontPx * 1.4;
-  });
-
-  y += mmToPx(4);
-  const phone = String(row["收件人聯絡電話"] ?? "").trim();
-  wrapCanvasText(ctx, phone, contentW).forEach(l => {
-    ctx.fillText(l, marginX, y);
-    y += recvFontPx * 1.4;
-  });
-
-  // ---- 備註(小字,訂單編號 + 訂購商品,跟黑貓備註同一套 _備註) ----
-  y += mmToPx(6);
-  const noteLabelFontPx = mmToPx(3.6);
-  ctx.font = `bold ${noteLabelFontPx}px "Noto Sans TC", sans-serif`;
-  ctx.fillText("備註", marginX, y);
-  y += noteLabelFontPx * 1.4;
-
-  const noteFontPx = mmToPx(3.2);
-  ctx.font = `${noteFontPx}px "Noto Sans TC", sans-serif`;
-  const orderId = String(row["訂單編號"] ?? "").trim();
-  const productNote = String(row["_備註"] ?? "").trim();
-  [
-    `訂單編號:${orderId}`,
-    `${productNote}`,
-  ].forEach(line => {
-    wrapCanvasText(ctx, line, contentW).forEach(l => {
-      ctx.fillText(l, marginX, y);
-      y += noteFontPx * 1.35;
-    });
-  });
-
-  return canvas;
-}
-
-async function generateOffshorePdf() {
-  if (!loadedRows) return;
-  const rows = loadedRows.filter(r => r["_離島"]);
-  if (rows.length === 0) {
-    setStatus("status", "warn", "⚠ 目前沒有離島寄送的訂單");
-    return;
-  }
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    setStatus("status", "error", "✗ PDF 產生元件載入失敗,請檢查網路連線後重新整理頁面");
-    return;
-  }
-
-  const btn = document.getElementById("offshorePdfBtn");
-  btn.disabled = true;
-  setStatus("status", "loading", `產生離島貼紙 PDF 中(${rows.length} 筆)…`);
-
-  try {
-    await ensureFontsLoaded();
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: [OFFSHORE_LABEL_MM.w, OFFSHORE_LABEL_MM.h],
-    });
-
-    rows.forEach((row, idx) => {
-      if (idx > 0) doc.addPage([OFFSHORE_LABEL_MM.w, OFFSHORE_LABEL_MM.h], "portrait");
-      const canvas = drawOffshoreLabel(row);
-      const imgData = canvas.toDataURL("image/jpeg", 0.92);
-      doc.addImage(imgData, "JPEG", 0, 0, OFFSHORE_LABEL_MM.w, OFFSHORE_LABEL_MM.h);
-    });
-
-    doc.save(`離島出貨貼紙_${todayStr()}.pdf`);
-    setStatus("status", "success", `✓ 已產生離島貼紙 PDF(共 ${rows.length} 頁)`);
-  } catch (e) {
-    setStatus("status", "error", `✗ 產生 PDF 失敗:${e.message}`);
-    console.error(e);
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-// ===================================================================
-// 試算表網址(從 localStorage 讀;離島寄送若未設定則退回下方寫死的預設網址)
+// 試算表網址(全部從 localStorage 讀,不寫死任何 ID)
 // ===================================================================
 const SHEET_URL_KEYS = {
   "雷雕":       "niyan_sheet_url_laser",
   "黑熊":       "niyan_sheet_url_bear",
+  "永生花":     "niyan_sheet_url_flower",
   "注意品項":   "niyan_sheet_url_notice",
   "盆景公仔組": "niyan_sheet_url_bonsai",
-  "離島寄送":   "niyan_sheet_url_offshore",
   "問題訂單":   "niyan_sheet_url_problem",
 };
 
 function getSheetUrl(category) {
   const key = SHEET_URL_KEYS[category];
-  const stored = key ? (localStorage.getItem(key) || "") : "";
-  if (stored) return stored;
-  if (category === "離島寄送") return OFFSHORE_SHEET_URL;  // 預設寫死的離島包裹試算表
-  return "";
+  return key ? (localStorage.getItem(key) || "") : "";
 }
 
 function openSheet(category) {
@@ -1905,10 +1655,9 @@ function openProblemSheet() {
 // 設定
 // ===================================================================
 const GS_URL_KEY = "niyan_gs_url";
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxHPxYGa6Rhg4JoboWuKZIUxP8NUMrtaIN0toRVwqbH__Q3HrxuznyGxxpLSijJ53df/exec";
 
 function openSettings() {
-  document.getElementById("gsUrlInput").value = localStorage.getItem(GS_URL_KEY) || DEFAULT_GS_URL;
+  document.getElementById("gsUrlInput").value = localStorage.getItem(GS_URL_KEY) || "";
   for (const cat of Object.keys(SHEET_URL_KEYS)) {
     const el = document.getElementById("sheetUrl_" + cat);
     if (el) el.value = getSheetUrl(cat);
@@ -1951,7 +1700,7 @@ function saveSettings() {
   closeSettings();
 }
 
-function getGsUrl() { return localStorage.getItem(GS_URL_KEY) || DEFAULT_GS_URL; }
+function getGsUrl() { return localStorage.getItem(GS_URL_KEY) || ""; }
 
 // ===================================================================
 // 一鍵上傳分類訂單(雷雕/黑熊/永生花/注意品項/盆景)到廠商試算表
@@ -1999,23 +1748,7 @@ function uploadAllToSheet() {
       totalCount += catRows.length;
     }
   });
-
-  // 離島寄送:地址含離島縣市的訂單,獨立於商品分類之外,額外上傳到離島包裹試算表
-  const offshoreRows = loadedRows.filter(r => r["_離島"]);
-  if (offshoreRows.length > 0) {
-    targets["離島寄送"] = offshoreRows.map(r => ({
-      date: today,
-      name: r["收件人姓名"] ?? "",
-      address: r["配送地址"] ?? "",
-      phone: r["收件人聯絡電話"] ?? "",
-      note: r["_備註"],
-      orderId: r["訂單編號"] ?? "",
-      qty: r["數量"] ?? 1,
-      island: r["_離島"],
-    }));
-    totalCount += offshoreRows.length;
-  }
-
+  
 if (totalCount === 0) {
   // 沒有分類訂單，但還是要上傳一般訂單數
   uploadLineRegular();
