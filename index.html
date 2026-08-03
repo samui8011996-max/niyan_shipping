@@ -950,7 +950,7 @@
         <div class="stat-card normal">
           <div class="stat-label">一般訂單</div>
           <div><span id="stat-regular" class="stat-number">—</span><span class="stat-unit">筆</span></div>
-          <div class="stat-sub">含注意品項、雷雕、永生花、其他訂單</div>
+          <div class="stat-sub">含注意品項、雷雕、其他訂單</div>
         </div>
         <div class="stat-card cyan clickable" onclick="openSheet('注意品項')" title="點我開啟注意品項試算表">
           <div class="stat-label">注意品項</div>
@@ -967,8 +967,8 @@
           <div><span id="stat-bear" class="stat-number">—</span><span class="stat-unit">筆</span></div>
           <div class="stat-sub">點我 → 開啟試算表</div>
         </div>
-        <div class="stat-card lavender clickable" onclick="openSheet('離島•郵局')" title="點我開啟離島包裹試算表">
-          <div class="stat-label">離島•郵局</div>
+        <div class="stat-card lavender clickable" onclick="openSheet('離島寄送')" title="點我開啟離島包裹試算表">
+          <div class="stat-label">離島寄送</div>
           <div><span id="stat-offshore" class="stat-number">—</span><span class="stat-unit">筆</span></div>
           <div class="stat-sub">改郵局寄 · 點我 → 開啟試算表</div>
         </div>
@@ -1124,8 +1124,11 @@
         所有設定只存在你這台瀏覽器(<code>localStorage</code>),不會送到任何地方,也不會跟著程式碼上傳。
       </p>
 
-      <p class="hint" style="margin-top: 0; margin-bottom: 6px;">
-        各分類試算表網址(讓字卡可以「點擊 → 開啟試算表」,留空則該字卡不可點開)
+      <label>① Apps Script 網路應用程式網址</label>
+      <input type="text" id="gsUrlInput" placeholder="https://script.google.com/macros/s/..../exec">
+
+      <p class="hint" style="margin-top: 18px; margin-bottom: 6px;">
+        ② 各分類試算表網址(讓字卡可以「點擊 → 開啟試算表」,留空則該字卡不可點開)
       </p>
 
       <label>雷雕</label>
@@ -1134,8 +1137,8 @@
       <label>黑熊</label>
       <input type="text" id="sheetUrl_黑熊" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
 
-      <label>離島•郵局</label>
-      <input type="text" id="sheetUrl_離島•郵局" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
+      <label>離島寄送</label>
+      <input type="text" id="sheetUrl_離島寄送" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
 
       <label>注意品項</label>
       <input type="text" id="sheetUrl_注意品項" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
@@ -1233,17 +1236,10 @@ const SPECIAL_CATEGORIES = [
 // 要上傳到 Google Sheet 的分類
 const UPLOAD_CATEGORIES = ["雷雕", "黑熊", "永生花", "注意品項", "盆景公仔組"];
 
-// 離島•郵局:地址含以下關鍵字 → 不用黑貓寄,改用郵局寄,另外上傳到「離島包裹」試算表
+// 離島寄送:地址含以下關鍵字 → 不用黑貓寄,改用郵局寄,另外上傳到「離島包裹」試算表
 // 澎湖/金門/連江(馬祖)是縣級離島;綠島/蘭嶼(台東縣)、琉球(屏東縣小琉球)是鄉鎮級離島,
 // 所以用鄉鎮名比對,不能用「台東縣」「屏東縣」(會誤判整個縣的訂單)
 const OFFSHORE_KEYWORDS = ["澎湖", "金門", "連江", "馬祖", "綠島", "蘭嶼", "琉球"];
-// 關鍵字後面必須緊接著這個正式行政區尾碼,才算真的命中離島(例如「板橋…金門街」
-// 只是路名裡剛好有「金門」兩字,不是金門縣,不能誤判成離島)。
-// 「馬祖」不是正式行政區名(官方是連江縣),沒有固定尾碼可比對,維持原本寬鬆比對。
-const OFFSHORE_KEYWORD_SUFFIX = {
-  "澎湖": "縣", "金門": "縣", "連江": "縣",
-  "綠島": "鄉", "蘭嶼": "鄉", "琉球": "鄉",
-};
 const OFFSHORE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1eV6lcWJ1nEs-As32NU6iatYAih-NYQ5WZfGteWDlk5A/edit";
 
 // 離島出貨貼紙(郵局寄)固定寄件人資訊,貼紙尺寸 100mm x 150mm
@@ -1280,11 +1276,7 @@ function extractOffshoreZip(address) {
 function extractOffshoreCounty(address) {
   const s = String(address ?? "");
   for (const kw of OFFSHORE_KEYWORDS) {
-    const idx = s.indexOf(kw);
-    if (idx < 0) continue;
-    const suffix = OFFSHORE_KEYWORD_SUFFIX[kw];
-    if (suffix && s[idx + kw.length] !== suffix) continue;  // 只是路名剛好同字,不是離島縣市
-    return kw;
+    if (s.includes(kw)) return kw;
   }
   return null;
 }
@@ -1329,37 +1321,25 @@ function buildNote(row) {
   return note.replace(/\s+/g, " ").trim();
 }
 
-// 一筆訂單可能同時符合多個特殊分類(例如品名同時有「巨物」和「雷雕」關鍵字)
-// → 要同時上傳到兩邊廠商試算表,所以回傳「全部命中」的分類,依優先序排列
-function categorizeAll(row) {
+function categorize(row) {
   const hs = [
     row["商品名稱"] ?? "",
     row["規格設定"] ?? "",
     row["客製刻印選項"] ?? "",
     row["_備註"] ?? "",
   ].map(String).join(" ");
-  const matches = [];
   for (const cat of SPECIAL_CATEGORIES) {
     for (const kw of cat.keys) {
-      if (hs.includes(kw)) { matches.push(cat.name); break; }
+      if (hs.includes(kw)) return cat.name;
     }
   }
-  return matches;
-}
-
-// 單一分類(給排序、上色、字卡優先序用):取命中分類中優先序最高的一個
-function categorize(row) {
-  const matches = categorizeAll(row);
-  return matches.length > 0 ? matches[0] : null;
+  return null;
 }
 
 // 計算各種數量(含黑熊細分、永生花細分、植物盆)
 function computeStats(rows) {
   const counts = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, 0]));
-  rows.forEach(r => {
-    const cats = r["_類別列表"] && r["_類別列表"].length ? r["_類別列表"] : (r["_類別"] ? [r["_類別"]] : []);
-    cats.forEach(c => { if (counts[c] !== undefined) counts[c]++; });
-  });
+  rows.forEach(r => { if (r["_類別"] && counts[r["_類別"]] !== undefined) counts[r["_類別"]]++; });
 
   // ---- 細分統計 ----
   // bear / plant 的子項是「數量」(給廠商對照用)
@@ -1407,8 +1387,8 @@ function computeStats(rows) {
     }
   });
 
-  // 一般訂單 = 不屬於黑熊/盆景公仔組,而且不是離島•郵局(離島改郵局寄,不算一般出貨);永生花算一般訂單
-  const excluded = new Set(["黑熊", "盆景公仔組"]);
+  // 一般訂單 = 不屬於黑熊/永生花/盆景公仔組,而且不是離島寄送(離島改郵局寄,不算一般出貨)
+  const excluded = new Set(["黑熊", "永生花", "盆景公仔組"]);
   const regular = rows.filter(r => !excluded.has(r["_類別"]) && !r["_離島"]).length;
 
   return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders, offshore };
@@ -1427,8 +1407,7 @@ async function handleFile(file) {
 
     rows.forEach(r => {
       r["_備註"] = buildNote(r);
-      r["_類別列表"] = categorizeAll(r);
-      r["_類別"] = r["_類別列表"][0] || null;
+      r["_類別"] = categorize(r);
       r["_離島"] = extractOffshoreCounty(r["配送地址"]);
     });
 
@@ -1616,7 +1595,7 @@ function generateOutput() {
 
       if (exportRows.length === 0) {
         setStatus("status", "warn",
-          `⚠ 全部 ${loadedRows.length} 筆都屬於黑熊/盆景公仔組/離島•郵局,已不下載本地表(請用一鍵上傳)`);
+          `⚠ 全部 ${loadedRows.length} 筆都屬於黑熊/盆景公仔組/離島寄送,已不下載本地表(請用一鍵上傳)`);
         return;
       }
 
@@ -1843,7 +1822,7 @@ async function generateOffshorePdf() {
   if (!loadedRows) return;
   const rows = loadedRows.filter(r => r["_離島"]);
   if (rows.length === 0) {
-    setStatus("status", "warn", "⚠ 目前沒有離島•郵局的訂單");
+    setStatus("status", "warn", "⚠ 目前沒有離島寄送的訂單");
     return;
   }
   if (!window.jspdf || !window.jspdf.jsPDF) {
@@ -1883,33 +1862,23 @@ async function generateOffshorePdf() {
 }
 
 // ===================================================================
-// 試算表網址(從 localStorage 讀;沒設定過就退回下方寫死的預設網址)
+// 試算表網址(從 localStorage 讀;離島寄送若未設定則退回下方寫死的預設網址)
 // ===================================================================
 const SHEET_URL_KEYS = {
   "雷雕":       "niyan_sheet_url_laser",
   "黑熊":       "niyan_sheet_url_bear",
   "注意品項":   "niyan_sheet_url_notice",
   "盆景公仔組": "niyan_sheet_url_bonsai",
-  "離島•郵局":  "niyan_sheet_url_offshore",
+  "離島寄送":   "niyan_sheet_url_offshore",
   "問題訂單":   "niyan_sheet_url_problem",
-};
-
-// 寫死的預設試算表網址,對應 gs 後端 SHEETS 設定裡的 spreadsheetId
-const DEFAULT_SHEET_URLS = {
-  "雷雕":       "https://docs.google.com/spreadsheets/d/1yWvDnbI9w1ukexlaZWNAOyPHUS7JKMgGIDPV83wlSQ8/edit",
-  "黑熊":       "https://docs.google.com/spreadsheets/d/1SVuzdacjbJrX82pIRkkdB7B1kD3pF9nggkynzxzUTII/edit",
-  "永生花":     "https://docs.google.com/spreadsheets/d/1ihfosKQwK8B9IA1768tHEACykPxHuTgzqd26kkA2YwM/edit",
-  "注意品項":   "https://docs.google.com/spreadsheets/d/1dPGbWNIcslooHOkYtwIPc-moh88z1UR0aA1gTwZ-prU/edit",
-  "盆景公仔組": "https://docs.google.com/spreadsheets/d/1hhx_HqK9m9XUxKQlGXcRYdY20Qpfg_zN9vTJW1U44Ts/edit",
-  "離島•郵局":  OFFSHORE_SHEET_URL,
-  "問題訂單":   "https://docs.google.com/spreadsheets/d/1lbEXKYvUzFljxdZmBdg1K0GzOahbnBH39bbANMZ34d4/edit",
 };
 
 function getSheetUrl(category) {
   const key = SHEET_URL_KEYS[category];
   const stored = key ? (localStorage.getItem(key) || "") : "";
   if (stored) return stored;
-  return DEFAULT_SHEET_URLS[category] || "";
+  if (category === "離島寄送") return OFFSHORE_SHEET_URL;  // 預設寫死的離島包裹試算表
+  return "";
 }
 
 function openSheet(category) {
@@ -1935,10 +1904,11 @@ function openProblemSheet() {
 // ===================================================================
 // 設定
 // ===================================================================
-// Apps Script 網址寫死,不再開放使用者設定/儲存
-const GS_URL = "https://script.google.com/macros/s/AKfycbxa4JEB143zhe9fr8tOnJW19CB7UNYPurmWBkOefk-euJvkj-hBHTqzz2x3w0TVKfYK/exec";
+const GS_URL_KEY = "niyan_gs_url";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxHPxYGa6Rhg4JoboWuKZIUxP8NUMrtaIN0toRVwqbH__Q3HrxuznyGxxpLSijJ53df/exec";
 
 function openSettings() {
+  document.getElementById("gsUrlInput").value = localStorage.getItem(GS_URL_KEY) || DEFAULT_GS_URL;
   for (const cat of Object.keys(SHEET_URL_KEYS)) {
     const el = document.getElementById("sheetUrl_" + cat);
     if (el) el.value = getSheetUrl(cat);
@@ -1948,6 +1918,12 @@ function openSettings() {
 function closeSettings() { document.getElementById("settingsModal").classList.remove("show"); }
 
 function saveSettings() {
+  const url = document.getElementById("gsUrlInput").value.trim();
+  if (url && !url.startsWith("https://script.google.com/")) {
+    setStatus("status", "error", "✗ Apps Script 網址格式不正確,應以 https://script.google.com/ 開頭");
+    return;
+  }
+
   // 驗證每個試算表網址(允許留空)
   for (const cat of Object.keys(SHEET_URL_KEYS)) {
     const el = document.getElementById("sheetUrl_" + cat);
@@ -1960,6 +1936,9 @@ function saveSettings() {
   }
 
   // 通過驗證,寫入
+  if (url) localStorage.setItem(GS_URL_KEY, url);
+  else localStorage.removeItem(GS_URL_KEY);
+
   for (const [cat, storageKey] of Object.entries(SHEET_URL_KEYS)) {
     const el = document.getElementById("sheetUrl_" + cat);
     if (!el) continue;
@@ -1972,7 +1951,7 @@ function saveSettings() {
   closeSettings();
 }
 
-function getGsUrl() { return GS_URL; }
+function getGsUrl() { return localStorage.getItem(GS_URL_KEY) || DEFAULT_GS_URL; }
 
 // ===================================================================
 // 一鍵上傳分類訂單(雷雕/黑熊/永生花/注意品項/盆景)到廠商試算表
@@ -1991,9 +1970,7 @@ function uploadAllToSheet() {
   let totalCount = 0;
 
   UPLOAD_CATEGORIES.forEach(cat => {
-    // 用完整命中清單比對,一筆訂單如果同時符合兩個分類(例如巨物+雷雕),
-    // 兩邊廠商試算表都要收到這筆
-    const catRows = loadedRows.filter(r => (r["_類別列表"] || []).includes(cat));
+    const catRows = loadedRows.filter(r => r["_類別"] === cat);
     if (catRows.length > 0) {
       targets[cat] = catRows.map(r => {
         const base = {
@@ -2023,15 +2000,15 @@ function uploadAllToSheet() {
     }
   });
 
-  // 離島•郵局:地址含離島縣市的訂單,獨立於商品分類之外,額外上傳到離島包裹試算表
+  // 離島寄送:地址含離島縣市的訂單,獨立於商品分類之外,額外上傳到離島包裹試算表
   const offshoreRows = loadedRows.filter(r => r["_離島"]);
   if (offshoreRows.length > 0) {
-    targets["離島•郵局"] = offshoreRows.map(r => ({
+    targets["離島寄送"] = offshoreRows.map(r => ({
       date: today,
       name: r["收件人姓名"] ?? "",
       address: r["配送地址"] ?? "",
       phone: r["收件人聯絡電話"] ?? "",
-      note: "",
+      note: r["_備註"],
       orderId: r["訂單編號"] ?? "",
       qty: r["數量"] ?? 1,
       island: r["_離島"],
@@ -2058,14 +2035,7 @@ if (totalCount === 0) {
 .then(data => {
       if (data.ok) {
         const breakdown = Object.entries(data.results || {})
-          .map(([c, r]) => {
-            if (!r.ok) return `${c} 失敗(${r.error})`;
-            let s = `${c} ${r.count}`;
-            if (r.packingSync) {
-              s += r.packingSync.ok ? "(已同步包貨郵局)" : `(包貨同步失敗:${r.packingSync.error || "未知錯誤"})`;
-            }
-            return s;
-          })
+          .map(([c, r]) => r.ok ? `${c} ${r.count}` : `${c} 失敗(${r.error})`)
           .join(" · ");
         setStatus("status", "success", `✓ 已上傳 ${data.totalWritten} 筆 · ${breakdown}`);
         uploadLineRegular();  // ← 加這行
