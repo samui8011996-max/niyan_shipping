@@ -755,7 +755,7 @@
     opacity: 0;
     pointer-events: none;
   }
-  .radio-card span {
+  .radio-card > span {
     display: block;
     background: var(--bg-input);
     border: 1px solid var(--border);
@@ -766,6 +766,9 @@
     color: var(--text-dim);
     transition: all 0.15s;
     user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .radio-card:hover span {
     border-color: var(--accent);
@@ -909,6 +912,24 @@
     background: var(--cat-orange-bg);
     border: 1px solid var(--cat-orange-border);
     color: var(--cat-orange-text);
+    font-weight: 500;
+  }
+  .problem-item .pi-returned {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--cat-lavender-bg);
+    border: 1px solid var(--cat-lavender-border);
+    color: var(--cat-lavender-text);
+    font-weight: 500;
+  }
+  .problem-item .pi-removed {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--cat-gray-bg);
+    border: 1px solid var(--cat-gray-border);
+    color: var(--cat-gray-text);
     font-weight: 500;
   }
 
@@ -1214,8 +1235,25 @@
         <label class="form-label">原因</label>
         <input type="text" id="returnReason" class="form-input" placeholder="例如:未取貨退回">
 
-        <label class="form-label">結果(選填)</label>
-        <input type="text" id="returnResult" class="form-input" placeholder="例如:已重寄 / 結案 / 退款結案">
+        <label class="form-label">結果</label>
+        <div class="problem-type-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 16px;">
+          <label class="radio-card">
+            <input type="radio" name="returnResult" value="未結案" checked>
+            <span>⏳ 未結案</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="returnResult" value="已退貨">
+            <span>📦 已退貨</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="returnResult" value="結案">
+            <span>✅ 結案</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="returnResult" value="移除">
+            <span>🗑 移除</span>
+          </label>
+        </div>
 
         <div id="returnContactFields">
           <label class="form-label">第一次電聯</label>
@@ -1246,14 +1284,18 @@
         <span id="returnListHint" class="stats-hint">載入中…</span>
       </div>
 
-      <div class="problem-type-grid" style="grid-template-columns: repeat(2, 1fr); max-width: 320px; margin-bottom: 12px;">
+      <div class="problem-type-grid" style="grid-template-columns: repeat(3, 1fr); max-width: 460px; margin-bottom: 12px;">
         <label class="radio-card">
-          <input type="radio" name="returnFilter" value="all" checked onchange="onReturnFilterChange()">
-          <span>全部</span>
+          <input type="radio" name="returnFilter" value="closed" onchange="onReturnFilterChange()">
+          <span>已結案<span id="returnClosedCount"></span></span>
         </label>
         <label class="radio-card">
-          <input type="radio" name="returnFilter" value="open" onchange="onReturnFilterChange()">
-          <span>⏳ 未結案<span id="returnOpenCount"></span></span>
+          <input type="radio" name="returnFilter" value="open" checked onchange="onReturnFilterChange()">
+          <span>未結案<span id="returnOpenCount"></span></span>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="returnFilter" value="returned" onchange="onReturnFilterChange()">
+          <span>已退貨<span id="returnReturnedCount"></span></span>
         </label>
       </div>
 
@@ -2645,19 +2687,43 @@ function resolveProblem(rowIndex, orderId, btn) {
 const RETURN_PLATFORMS = ["line禮物", "蝦皮", "mo"];
 let returnListCache = { "line禮物": [], "蝦皮": [], "mo": [] };   // { rowIndex, date, orderId, trackingNo, reason, result, contact1~4 }
 
+// 結果欄位固定四種狀態:未結案 是還在處理中,已退貨/結案/移除 算終結狀態
+const RETURN_RESULT_OPTIONS = ["未結案", "已退貨", "結案", "移除"];
+const RETURN_RESULT_BADGES = {
+  "未結案": { cls: "pi-open",     icon: "⏳" },
+  "已退貨": { cls: "pi-returned", icon: "📦" },
+  "結案":   { cls: "pi-result",   icon: "✅" },
+  "移除":   { cls: "pi-removed",  icon: "🗑" },
+};
+const RETURN_CLOSED_RESULTS = new Set(["結案", "已退貨", "移除"]);
+
 function currentReturnPlatform() {
   const el = document.querySelector('input[name="returnPlatform"]:checked');
   return el ? el.value : "line禮物";
 }
 
-// 未結案 = 結果欄位還空著(表示還在追蹤中,尚未退款/重寄/結案)
+// 未結案 = 結果不是「結案/已退貨/移除」這幾種終結狀態(含空白)
 function isReturnOpen(record) {
-  return !String(record.result || "").trim();
+  const v = String(record.result || "").trim();
+  return !RETURN_CLOSED_RESULTS.has(v);
+}
+
+function isReturnReturned(record) {
+  return String(record.result || "").trim() === "已退貨";
+}
+
+function returnResultBadgeHtml(result) {
+  const v = String(result || "").trim();
+  if (!v) return `<span class="pi-open">⏳ 未結案</span>`;
+  const b = RETURN_RESULT_BADGES[v];
+  if (b) return `<span class="${b.cls}">${b.icon} ${escapeHtml(v)}</span>`;
+  // 舊資料裡的自由文字結果(例如「蝦皮退款結案」),沒有對應到固定選項就照原文顯示
+  return `<span class="pi-result">${escapeHtml(v)}</span>`;
 }
 
 function currentReturnFilter() {
   const el = document.querySelector('input[name="returnFilter"]:checked');
-  return el ? el.value : "all";
+  return el ? el.value : "open";
 }
 
 function onReturnFilterChange() {
@@ -2687,12 +2753,13 @@ function submitReturn() {
     return;
   }
 
+  const resultEl = document.querySelector('input[name="returnResult"]:checked');
   const record = {
     date: document.getElementById("returnDate").value.trim(),
     orderId,
     trackingNo: document.getElementById("returnTrackingNo").value.trim(),
     reason: document.getElementById("returnReason").value.trim(),
-    result: document.getElementById("returnResult").value.trim(),
+    result: resultEl ? resultEl.value : "未結案",
   };
   if (platform === "line禮物") {
     record.contact1 = document.getElementById("returnContact1").value.trim();
@@ -2735,7 +2802,8 @@ function clearReturnForm() {
   document.getElementById("returnOrderId").value = "";
   document.getElementById("returnTrackingNo").value = "";
   document.getElementById("returnReason").value = "";
-  document.getElementById("returnResult").value = "";
+  const defaultResult = document.querySelector('input[name="returnResult"][value="未結案"]');
+  if (defaultResult) defaultResult.checked = true;
   ["returnContact1", "returnContact2", "returnContact3", "returnContact4"].forEach(id => {
     document.getElementById(id).value = "";
   });
@@ -2786,12 +2854,28 @@ function renderReturnList() {
   const container = document.getElementById("returnList");
   const hint = document.getElementById("returnListHint");
 
-  // 更新「未結案」篩選籤上的數量
+  // 更新「已結案/未結案/已退貨」篩選籤上的數量
   const openCount = list.filter(isReturnOpen).length;
+  const closedCount = list.length - openCount;
+  const returnedCount = list.filter(isReturnReturned).length;
   const openCountEl = document.getElementById("returnOpenCount");
-  if (openCountEl) openCountEl.textContent = openCount > 0 ? ` (${openCount})` : "";
+  const closedCountEl = document.getElementById("returnClosedCount");
+  const returnedCountEl = document.getElementById("returnReturnedCount");
+  if (openCountEl) openCountEl.textContent = `(${openCount})`;
+  if (closedCountEl) closedCountEl.textContent = `(${closedCount})`;
+  if (returnedCountEl) returnedCountEl.textContent = `(${returnedCount})`;
 
-  const filtered = filter === "open" ? list.filter(isReturnOpen) : list;
+  let filtered, filterLabel;
+  if (filter === "closed") {
+    filtered = list.filter(r => !isReturnOpen(r));
+    filterLabel = "已結案";
+  } else if (filter === "returned") {
+    filtered = list.filter(isReturnReturned);
+    filterLabel = "已退貨";
+  } else {
+    filtered = list.filter(isReturnOpen);
+    filterLabel = "未結案";
+  }
 
   if (list.length === 0) {
     hint.textContent = `${platform} 目前沒有退貨紀錄`;
@@ -2799,14 +2883,12 @@ function renderReturnList() {
     return;
   }
   if (filtered.length === 0) {
-    hint.textContent = `${platform} 沒有未結案的紀錄`;
-    container.innerHTML = `<div class="problem-empty">${platform} 目前沒有未結案的退貨紀錄 🎉</div>`;
+    hint.textContent = `${platform} 沒有${filterLabel}的紀錄`;
+    container.innerHTML = `<div class="problem-empty">${platform} 目前沒有${filterLabel}的退貨紀錄 🎉</div>`;
     return;
   }
 
-  hint.textContent = filter === "open"
-    ? `未結案 ${filtered.length} 筆(共 ${list.length} 筆)`
-    : `共 ${list.length} 筆 · 未結案 ${openCount} 筆`;
+  hint.textContent = `共 ${list.length} 筆 · ${filterLabel} ${filtered.length} 筆`;
 
   // 由新到舊排序(rowIndex 越大代表越新加)
   const sorted = filtered.slice().sort((a, b) => b.rowIndex - a.rowIndex);
@@ -2816,11 +2898,8 @@ function renderReturnList() {
     const safeTracking = escapeHtml(r.trackingNo || "");
     const safeDate = escapeHtml(r.date || "");
     const safeReason = escapeHtml(r.reason || "");
-    const safeResult = escapeHtml(r.result || "");
 
-    const resultHtml = safeResult
-      ? `<span class="pi-result">${safeResult}</span>`
-      : `<span class="pi-open">⏳ 未結案</span>`;
+    const resultHtml = returnResultBadgeHtml(r.result);
     const trackingHtml = safeTracking ? `<span class="pi-tracking">${safeTracking}</span>` : "";
     const reasonHtml = safeReason ? `<div class="pi-note">${safeReason}</div>` : "";
 
@@ -2863,7 +2942,17 @@ function editReturn(rowIndex) {
   document.getElementById("returnOrderId").value = record.orderId || "";
   document.getElementById("returnTrackingNo").value = record.trackingNo || "";
   document.getElementById("returnReason").value = record.reason || "";
-  document.getElementById("returnResult").value = record.result || "";
+  const resultVal = String(record.result || "").trim();
+  const resultRadios = document.querySelectorAll('input[name="returnResult"]');
+  let matched = false;
+  resultRadios.forEach(el => {
+    if (el.value === resultVal) { el.checked = true; matched = true; }
+  });
+  if (!matched) {
+    // 舊資料或自由文字結果沒有對應到固定選項,先預設回到「未結案」
+    const fallback = document.querySelector('input[name="returnResult"][value="未結案"]');
+    if (fallback) fallback.checked = true;
+  }
   if (platform === "line禮物") {
     document.getElementById("returnContact1").value = record.contact1 || "";
     document.getElementById("returnContact2").value = record.contact2 || "";
