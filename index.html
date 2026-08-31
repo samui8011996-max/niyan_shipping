@@ -891,6 +891,22 @@
     display: flex;
     gap: 8px;
   }
+  .pi-delete-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--cat-red-num);
+    user-select: none;
+  }
+  .pi-delete-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--cat-red-num);
+    cursor: pointer;
+  }
   .problem-item .pi-tracking {
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
@@ -1116,6 +1132,21 @@
           <div><span id="stat-unmatched" class="stat-number">—</span><span class="stat-unit">筆</span></div>
           <div class="stat-sub">黑貓明細表找不到</div>
         </div>
+      </div>
+
+      <div id="unmatchedSection" style="display: none; margin-top: 24px;">
+        <div class="stats-header">
+          <span class="stats-title">未配對訂單</span>
+          <span id="unmatchedHint" class="stats-hint"></span>
+        </div>
+        <p style="color: var(--text-dim); font-size: 12px; margin-bottom: 10px; line-height: 1.7;">
+          勾選的訂單,匯出時會直接從檔案裡刪除(不會出現在下載的表裡);不勾選則照舊用紅色反白排在最下面。
+        </p>
+        <div class="actions" style="margin-bottom: 10px; margin-top: 0;">
+          <button class="btn btn-ghost btn-small" onclick="toggleAllUnmatched(true)">全選要刪除</button>
+          <button class="btn btn-ghost btn-small" onclick="toggleAllUnmatched(false)">全部保留</button>
+        </div>
+        <div id="unmatchedList" class="problem-list"></div>
       </div>
     </div>
 
@@ -1513,6 +1544,8 @@ let loadedRows = null;
 let lineTemplateData = null;
 let bcDetailData = null;
 let lastStats = null;              // 最近一次算出來的統計
+let lastUnmatchedOrders = [];      // 目前配對後找不到託運單號的訂單清單 [{orderId}]
+let unmatchedDeleteSet = new Set(); // 使用者勾選「匯出時直接刪除」的訂單編號
 
 // ===================================================================
 // 核心邏輯 (出貨表)
@@ -2310,6 +2343,9 @@ if (totalCount === 0) {
 // ===================================================================
 async function handleLineTemplate(file) {
   setStatus("logisticsStatus", "loading", "讀取 LINE 模板中…");
+  lastUnmatchedOrders = [];
+  unmatchedDeleteSet.clear();
+  renderUnmatchedSection();
   try {
     const data = await file.arrayBuffer();
     const wb = XLSX.read(data, { type: "array", cellStyles: true });
@@ -2348,6 +2384,9 @@ async function handleLineTemplate(file) {
 
 async function handleBcDetail(file) {
   setStatus("logisticsStatus", "loading", "讀取黑貓明細中…");
+  lastUnmatchedOrders = [];
+  unmatchedDeleteSet.clear();
+  renderUnmatchedSection();
   try {
     const data = await file.arrayBuffer();
     const wb = XLSX.read(data, { type: "array" });
@@ -2387,13 +2426,21 @@ async function handleBcDetail(file) {
 
 function checkBothLoaded() {
   if (lineTemplateData && bcDetailData) {
-    let matched = 0, unmatched = 0;
+    let matched = 0;
+    const unmatchedOrders = [];
     lineTemplateData.orders.forEach(o => {
       if (bcDetailData.has(o.orderId)) matched++;
-      else unmatched++;
+      else unmatchedOrders.push(o);
     });
+    const unmatched = unmatchedOrders.length;
     document.getElementById("stat-matched").textContent = matched;
     document.getElementById("stat-unmatched").textContent = unmatched;
+
+    lastUnmatchedOrders = unmatchedOrders;
+    // 重新載入檔案時,把勾選記錄限縮到還存在的未配對訂單(避免殘留舊的勾選狀態)
+    const stillUnmatchedIds = new Set(unmatchedOrders.map(o => o.orderId));
+    unmatchedDeleteSet = new Set([...unmatchedDeleteSet].filter(id => stillUnmatchedIds.has(id)));
+    renderUnmatchedSection();
 
     if (matched > 0) {
       document.getElementById("logisticsRunBtn").disabled = false;
@@ -2406,6 +2453,61 @@ function checkBothLoaded() {
       setStatus("logisticsStatus", "error", "✗ 沒有任何訂單配對成功,檢查兩個檔案是否正確");
     }
   }
+}
+
+function renderUnmatchedSection() {
+  const section = document.getElementById("unmatchedSection");
+  const hint = document.getElementById("unmatchedHint");
+  const list = document.getElementById("unmatchedList");
+
+  if (lastUnmatchedOrders.length === 0) {
+    section.style.display = "none";
+    list.innerHTML = "";
+    return;
+  }
+
+  section.style.display = "";
+  hint.textContent = unmatchedDeleteSet.size > 0
+    ? `共 ${lastUnmatchedOrders.length} 筆 · 已勾選 ${unmatchedDeleteSet.size} 筆待刪除`
+    : `共 ${lastUnmatchedOrders.length} 筆`;
+
+  list.innerHTML = lastUnmatchedOrders.map(o => {
+    const safeId = escapeHtml(o.orderId);
+    const checked = unmatchedDeleteSet.has(o.orderId) ? "checked" : "";
+    return `
+      <div class="problem-item">
+        <div class="problem-item-main">
+          <div class="problem-item-row1">
+            <span class="pi-id">${safeId}</span>
+          </div>
+        </div>
+        <label class="pi-delete-check">
+          <input type="checkbox" data-order-id="${safeId}" ${checked} onchange="onUnmatchedCheckChange(this)">
+          匯出時刪除
+        </label>
+      </div>
+    `;
+  }).join("");
+}
+
+function onUnmatchedCheckChange(el) {
+  const orderId = el.dataset.orderId;
+  if (el.checked) unmatchedDeleteSet.add(orderId);
+  else unmatchedDeleteSet.delete(orderId);
+
+  const hint = document.getElementById("unmatchedHint");
+  hint.textContent = unmatchedDeleteSet.size > 0
+    ? `共 ${lastUnmatchedOrders.length} 筆 · 已勾選 ${unmatchedDeleteSet.size} 筆待刪除`
+    : `共 ${lastUnmatchedOrders.length} 筆`;
+}
+
+function toggleAllUnmatched(checked) {
+  if (checked) {
+    lastUnmatchedOrders.forEach(o => unmatchedDeleteSet.add(o.orderId));
+  } else {
+    unmatchedDeleteSet.clear();
+  }
+  renderUnmatchedSection();
 }
 
 function generateLogistics() {
@@ -2422,11 +2524,18 @@ function generateLogistics() {
 
       const matched = [];
       const unmatched = [];
+      let deletedCount = 0;
       orders.forEach(o => {
+        const track = bcDetailData.get(o.orderId);
+        if (!track && unmatchedDeleteSet.has(o.orderId)) {
+          // 使用者勾選「匯出時刪除」的未配對訂單,直接跳過、不寫進檔案
+          deletedCount++;
+          return;
+        }
+
         const rowData = aoa[o.rowIdx].slice();
         while (rowData.length < colCount) rowData.push("");
 
-        const track = bcDetailData.get(o.orderId);
         if (track) {
           rowData[carrierCol] = "T_CAT";
           rowData[trackingCol] = String(track);
@@ -2463,6 +2572,7 @@ function generateLogistics() {
 
       let msg = `✓ 已下載:${filename}  (填入 ${matched.length} 筆)`;
       if (unmatched.length > 0) msg += `,另有 ${unmatched.length} 筆未對應(已紅色反白排在最下面)`;
+      if (deletedCount > 0) msg += `,已刪除 ${deletedCount} 筆勾選的未配對訂單`;
       setStatus("logisticsStatus", "success", msg);
     } catch (e) {
       setStatus("logisticsStatus", "error", `✗ 匯出失敗:${e.message}`);
