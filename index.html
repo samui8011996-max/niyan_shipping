@@ -1390,13 +1390,26 @@ const SENDER_NAME = "LINE禮物-泥研製所";
 const ITEM_COUNT = 1;
 const ITEM_NAME_CODE = 9;
 
+// 空白字元可能是全形/半形/多個空白,逐字比對容易對不到 → 用正規表示式忽略空白處理
+const REMOVE_REGEX_PATTERNS = [
+  /【\s*送禮首選】/g,
+  // 「【OO座送禮】」這種標題,12 星座版本一律刪掉(例如【處女座送禮】)
+  /【(牡羊座|金牛座|雙子座|巨蟹座|獅子座|處女座|天秤座|天蠍座|射手座|摩羯座|水瓶座|雙魚座)送禮】/g,
+  // 「【OO座生日快樂】」這種標題,12 星座版本一律刪掉
+  /【(牡羊座|金牛座|雙子座|巨蟹座|獅子座|處女座|天秤座|天蠍座|射手座|摩羯座|水瓶座|雙魚座)生日快樂】/g,
+];
+
 const REMOVE_PATTERNS = [
   "+250天然精油: 不加購",
+  "【開運組合】",
+  "【財運滾滾來】",
+  "為你擋住所有煩惱",
   " , +加購木片底座: 不加購 '",
-  " +加購: 不加購 '",
+  ", +加購: 不加購 '",
   ", 加購: 不加購",
   "(收禮者可任選)",
   "【+1元多一件】",
+  "【 泥研製所||生日送禮首選】",
   "泥研製所||",
   "【泥研製所】",
   "+250",
@@ -1404,20 +1417,9 @@ const REMOVE_PATTERNS = [
   "+加購單方精油: 不加購",
   "+加購精油: 不加購",
   ", 加購精油: 不加購",
+  ", +加購木片底座: 不加購",
   "好運禮物組",
   " +金元寶+底座",
-  "【雙子座生日快樂】",
-  "【牡羊座生日快樂】",
-  "【金牛座生日快樂】",
-  "【巨蟹座生日快樂】",
-  "【獅子座生日快樂】",
-  "【處女座生日快樂】",
-  "【天秤座生日快樂】",
-  "【天蠍座生日快樂】",
-  "【射手座生日快樂】",
-  "【摩羯座生日快樂】",
-  "【水瓶座生日快樂】",
-  "【雙魚座生日快樂】",
   "(3/21~4/19)",
   "(4/20~5/20)",
   "(5/21~6/21)",
@@ -1447,10 +1449,25 @@ const REMOVE_PATTERNS = [
   "收禮人自選精油！",
   "x客製生日紀念日",
   "【開店送禮首選】",
-   "【開店送禮首選】",
+  "【生日送禮首選】",
+  "【搞怪禮物】",
+  "限定登場｜",
   "12星座",
   "'",
   "+50",
+];
+
+// 品名簡化(找到左邊字串就整段換成右邊,跟 REMOVE_PATTERNS 不同,這裡是「換字」不是單純刪除)
+const REPLACE_PATTERNS = [
+  ["胖胖招財招福貓", "胖胖貓"],
+  ["胖胖金運招福貓", "胖胖貓"],
+  ["【萬馬奔騰，馬上有錢】", "【馬貓】"],
+  ["辦公室療癒首選", "辦公室語錄"],
+  ["辦公室發財語錄", "辦公室語錄"],
+  ["星座開運胖胖貓", "星座貓"],
+  ["開運胖胖貓", "星座貓"],
+  ["顏色-款式:", "規格:"],
+  [" , +加購木片底座: 木片", " , +加購木片: 木片:"],
 ];
 
 const FIELD_MAPPING = {
@@ -1575,7 +1592,9 @@ function buildNote(row) {
   }
   const qty = row["數量"] ?? 1;
   let note = parts.join(" ") + ` x${qty}`;
+  for (const [find, repl] of REPLACE_PATTERNS) note = note.split(find).join(repl);
   for (const pat of REMOVE_PATTERNS) note = note.split(pat).join("");
+  for (const re of REMOVE_REGEX_PATTERNS) note = note.replace(re, "");
   note = note.replace(/[,、]\s*(?=x\d)/g, " ");
   return note.replace(/\s+/g, " ").trim();
 }
@@ -1688,8 +1707,20 @@ async function handleFile(file) {
 // 經過 REMOVE_PATTERNS 清理後會變成同字串,就能合併
 function cleanProductName(name) {
   let s = String(name ?? "");
+  for (const [find, repl] of REPLACE_PATTERNS) s = s.split(find).join(repl);
   for (const pat of REMOVE_PATTERNS) s = s.split(pat).join("");
+  for (const re of REMOVE_REGEX_PATTERNS) s = s.replace(re, "");
+  s = s.replace(/[(（](小|中|大)[)）]/g, "");   // 尺寸另外用 extractSize 排序,不放進分組名稱裡
   return s.replace(/\s+/g, " ").trim();
+}
+
+// 從商品名稱 + 規格設定 + 客製刻印抓「(小)/(中)/(大)」尺寸(有些品項尺寸是寫在規格設定,不是商品名稱)
+// 回傳 0/1/2 讓同尺寸排在一起(小→中→大)
+function extractSize(row) {
+  const hs = [row["商品名稱"] ?? "", row["規格設定"] ?? "", row["客製刻印選項"] ?? ""].map(String).join(" ");
+  const m = hs.match(/[(（]\s*(小|中|大)\s*[)）]/);
+  if (!m) return -1;
+  return { "小": 0, "中": 1, "大": 2 }[m[1]];
 }
 
 // 從規格設定 + 客製刻印 判斷「金運 / 招福」,金運在前
@@ -1701,12 +1732,78 @@ function styleOrder(row) {
   return 2;
 }
 
+// 星座貓分組用:是不是星座貓(用清理後的名稱判斷,不受格式差異影響)、以及對到哪個星座
+const ZODIAC_SIGNS = ["牡羊座", "金牛座", "雙子座", "巨蟹座", "獅子座", "處女座", "天秤座", "天蠍座", "射手座", "摩羯座", "水瓶座", "雙魚座"];
+
+function isZodiacCat(row) {
+  return cleanProductName(row["商品名稱"]).includes("星座貓");
+}
+
+function extractZodiac(row) {
+  const hs = [row["商品名稱"] ?? "", row["規格設定"] ?? "", row["客製刻印選項"] ?? ""].map(String).join(" ");
+  const sign = ZODIAC_SIGNS.find(z => hs.includes(z));
+  return sign ? ZODIAC_SIGNS.indexOf(sign) : -1;
+}
+
+// 有些品項的尺寸/組合描述是寫在規格設定裡,不是商品名稱,所以要合併比對;
+// 原始資料的商品名稱其實是「胖胖招財招福貓」不是「胖胖貓」,要先套 REPLACE_PATTERNS 簡化成跟關鍵字一致的寫法才比對得到;
+// 且原始資料的空白不一定跟關鍵字打的一樣(有無空格),兩邊都去掉空白再比對
+function rowHaystack(row) {
+  let s = [row["商品名稱"] ?? "", row["規格設定"] ?? "", row["客製刻印選項"] ?? ""].map(String).join("");
+  for (const [find, repl] of REPLACE_PATTERNS) s = s.split(find).join(repl);
+  return s.replace(/\s+/g, "");
+}
+function matchKeys(hs, keys) {
+  return keys.every(k => hs.includes(String(k).replace(/\s+/g, "")));
+}
+
+// 客戶指定的完整順序(數字越小排越前面),寫在前面的規則優先判定,所以較specific的組合要排在較generic的前面。
+// 註:「只在互相比較時才生效、不影響全域位置」的寫法試過,但 Array.sort 不保證這種局部規則能讓兩筆資料真的排在一起
+// (中間可能被其他不相干品項用別的排序條件插進來),所以還是用單一順序清單,把整組拉到同一個位置比較可靠。
+const MANUAL_ORDER_KEYWORDS = [
+  ["招財招福雙喵組"],
+  ["團圓美滿胖胖貓(大中小三入)"],
+  ["馬貓"],
+  ["好運禮盒", "護手霜禮盒"],
+  ["好運禮盒", "賓士水泥消波塊"],  // 消波塊系列(含禮盒)
+  ["賓士水泥消波塊"],
+  ["發財芳香精油組"],
+  ["好運禮盒", "精油禮盒"],
+  ["胖胖貓", "好運精油組"],       // 繽紛好運精油組
+  ["胖胖貓 (小)"],                // 緊接排在上面這個下方(注意:比對順序要在較specific的品項之後)
+];
+
+function manualOrderRank(row) {
+  const hs = rowHaystack(row);
+  const idx = MANUAL_ORDER_KEYWORDS.findIndex(keys => matchKeys(hs, keys));
+  return idx === -1 ? Infinity : idx;
+}
+
 const prioMap = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, c.priority]));
 rows.sort((a, b) => {
   // 1. 特殊類別優先序(黑熊 > 永生花 > 盆景 > 注意品項 > 雷雕 > 一般)
   const pa = prioMap[a["_類別"]] ?? 0;
   const pb = prioMap[b["_類別"]] ?? 0;
   if (pa !== pb) return pa - pb;
+
+  // 1.2 手動指定順序,優先於下面所有排序規則
+  const ra = manualOrderRank(a), rb = manualOrderRank(b);
+  if (ra !== rb) return ra - rb;
+
+  // 1.5 尺寸「小→中→大」排在一起,不管品項是什麼(同一分類內優先照尺寸分堆)
+  const szA = extractSize(a), szB = extractSize(b);
+  if (szA !== -1 && szB !== -1 && szA !== szB) return szA - szB;
+
+  // 1.7 星座貓(雷雕除外):是星座貓字眼的排在一起,同星座再排在一起
+  if (a["_類別"] !== "雷雕" && b["_類別"] !== "雷雕") {
+    const za = isZodiacCat(a) ? 1 : 0;
+    const zb = isZodiacCat(b) ? 1 : 0;
+    if (za !== zb) return za - zb;
+    if (za && zb) {
+      const zi = extractZodiac(a) - extractZodiac(b);
+      if (zi !== 0) return zi;
+    }
+  }
 
   // 2. 用「清理後的商品名稱」排,讓「【泥研製所||辦公室小物】」和「【辦公室小物】」合併
   const n1 = cleanProductName(a["商品名稱"]).localeCompare(cleanProductName(b["商品名稱"]));
