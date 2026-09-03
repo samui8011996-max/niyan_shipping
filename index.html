@@ -2503,6 +2503,34 @@ function buildMergedDetailLines(mergedRows) {
   return buildFineBreakdown(mergedRows);
 }
 
+// 「獨立出單品項」清單排序用的粗分組 key:胖胖貓同一個尺寸會因為金運/招福拆成兩三個獨立品項,
+// 這幾個要排在一起,不能被件數打散;其他品項沒有這種「同尺寸不同款式」的情況,各自用自己的標籤當 key 就好。
+function zonedGroupFamilyKey(g) {
+  const sample = g.rows[0];
+  if (sample && isPangpangCat(sample)) {
+    return `PANGPANG|${isPangpangPair(sample) ? "PAIR" : "SINGLE"}|${sizeGroupSuffix(sample) || "無尺寸"}`;
+  }
+  return g.label;
+}
+
+// 「獨立出單品項」清單排序:同一個粗分組(例如胖胖貓同尺寸的金運/招福)排在一起,不會被拆散到清單各處;
+// 組跟組之間依「這組件數總和」由多到少排(大宗品項排前面),組內再依件數排序。
+function sortZonedGroups(list) {
+  const familyTotals = new Map();
+  list.forEach(g => {
+    const fk = zonedGroupFamilyKey(g);
+    familyTotals.set(fk, (familyTotals.get(fk) || 0) + g.qty);
+  });
+  return list.sort((a, b) => {
+    const fa = zonedGroupFamilyKey(a), fb = zonedGroupFamilyKey(b);
+    if (fa !== fb) {
+      const diff = familyTotals.get(fb) - familyTotals.get(fa);
+      return diff !== 0 ? diff : fa.localeCompare(fb);
+    }
+    return b.qty - a.qty || a.label.localeCompare(b.label);
+  });
+}
+
 // 把 exportRows 依商品編號(或編號+規格)分組:
 //   ownGroups:數量超過門檻的品項,各自一組 { label, rows, qty }(依名稱排序)
 //   mergedGroups:沒超過門檻的品項,同樣各自一組 { label, rows, qty },但依數量由多到少排序
@@ -2576,8 +2604,8 @@ function updateZonedStats(rows) {
 
   zonedRegularTotal = exportRows.length;
 
-  // 獨立出單品項:依件數由多到少排序,每項各自一個下載按鈕
-  zonedGroupsCache = ownGroups.slice().sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label));
+  // 獨立出單品項:依件數由多到少排序(同尺寸的胖胖貓金運/招福會排在一起),每項各自一個下載按鈕
+  zonedGroupsCache = sortZonedGroups(ownGroups.slice());
   zonedMergedRowsCache = mergedRows;
   zonedMergedDownloaded = false; // 資料重新產生,先前的下載狀態不再代表目前內容
 
@@ -2755,7 +2783,7 @@ function mergeZonedGroups() {
 
   zonedGroupsCache = zonedGroupsCache.filter(g => !pickedSet.has(g));
   zonedGroupsCache.push({ label, rows, qty });
-  zonedGroupsCache.sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label));
+  sortZonedGroups(zonedGroupsCache);
 
   picked.forEach(g => zonedExpandedLabels.delete(g.label));
   renderZonedGroupList(zonedGroupsCache);
