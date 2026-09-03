@@ -1397,10 +1397,13 @@ const REMOVE_REGEX_PATTERNS = [
   /【(牡羊座|金牛座|雙子座|巨蟹座|獅子座|處女座|天秤座|天蠍座|射手座|摩羯座|水瓶座|雙魚座)送禮】/g,
   // 「【OO座生日快樂】」這種標題,12 星座版本一律刪掉
   /【(牡羊座|金牛座|雙子座|巨蟹座|獅子座|處女座|天秤座|天蠍座|射手座|摩羯座|水瓶座|雙魚座)生日快樂】/g,
+  // 任何「OO: 不加購」都整段刪掉(沒加購=沒資訊,不用印在備註),不用每個欄位名稱各寫一條;
+  // 有些欄位名稱前面接著 + 號(例如「+加購木片底座: 不加購」),要一起吃掉才不會留下孤立的逗號/+號
+  /[,，]?\s*\+?[一-鿿A-Za-z0-9]{1,10}[:：]\s*不加購/g,
 ];
 
 const REMOVE_PATTERNS = [
-  "+250天然精油: 不加購",
+  ", +250天然精油: 不加購",
   "【開運組合】",
   "【財運滾滾來】",
   "為你擋住所有煩惱",
@@ -1450,11 +1453,17 @@ const REMOVE_PATTERNS = [
   "x客製生日紀念日",
   "【開店送禮首選】",
   "【生日送禮首選】",
+  "中部粽",
   "【搞怪禮物】",
   "限定登場｜",
   "12星座",
   "'",
   "+50",
+  "【不倒翁招財招福貓】",
+  "【入厝送禮】",
+  "【必選禮物】",
+  "【開運招財擺件】",
+  "【開運送禮】",
 ];
 
 // 品名簡化(找到左邊字串就整段換成右邊,跟 REMOVE_PATTERNS 不同,這裡是「換字」不是單純刪除)
@@ -1467,7 +1476,18 @@ const REPLACE_PATTERNS = [
   ["星座開運胖胖貓", "星座貓"],
   ["開運胖胖貓", "星座貓"],
   ["顏色-款式:", "規格:"],
-  [" , +加購木片底座: 木片", " , +加購木片: 木片:"],
+  [", +加購木片底座: 木片", "+加購: 木片"],
+  [", +加購木片底座: 木片", "+加購: 木片"],
+  ["賓士水泥消波塊", "消波塊"],
+  ["客製化雷雕", "雷雕"],
+  ["圓滾滾幸運貓", "雙手貓"],
+  // 顏色名稱簡化:招財黃 → 黃,以此類推
+  ["招財黃", "黃"],
+  ["炭錢黑", "黑"],
+  ["純淨白", "白"],
+  ["健康綠", "綠"],
+  ["清水灰", "灰"],
+  ["戀愛粉", "粉"],
 ];
 
 const FIELD_MAPPING = {
@@ -1485,6 +1505,12 @@ const PRODUCT_CODES = {
   FLOWER_PINK:        "322346457",  // 粉花
   FLOWER_BLUE:        "322329751",  // 藍花
   PLANT_POT:          "322230424",
+  TETRAPOD_BOX:       "322413765",  // 消波塊(禮盒版)
+  TETRAPOD_NORMAL:    "322027863",  // 消波塊(一般版)
+  OIL_CAT_BOX:        "322415648",  // 精油貓(禮盒版)
+  OIL_CAT_NORMAL:     "322282246",  // 精油貓(一般版)
+  DOUBLE_CAT:         "322384394",  // 雙喵
+  REUNION_CAT:        "322329026",  // 團圓貓
 };
 
 const SPECIAL_CATEGORIES = [
@@ -1757,25 +1783,56 @@ function matchKeys(hs, keys) {
   return keys.every(k => hs.includes(String(k).replace(/\s+/g, "")));
 }
 
-// 客戶指定的完整順序(數字越小排越前面),寫在前面的規則優先判定,所以較specific的組合要排在較generic的前面。
-// 註:「只在互相比較時才生效、不影響全域位置」的寫法試過,但 Array.sort 不保證這種局部規則能讓兩筆資料真的排在一起
-// (中間可能被其他不相干品項用別的排序條件插進來),所以還是用單一順序清單,把整組拉到同一個位置比較可靠。
-const MANUAL_ORDER_KEYWORDS = [
-  ["招財招福雙喵組"],
-  ["團圓美滿胖胖貓(大中小三入)"],
-  ["馬貓"],
-  ["好運禮盒", "護手霜禮盒"],
-  ["好運禮盒", "賓士水泥消波塊"],  // 消波塊系列(含禮盒)
-  ["賓士水泥消波塊"],
-  ["發財芳香精油組"],
-  ["好運禮盒", "精油禮盒"],
-  ["胖胖貓", "好運精油組"],       // 繽紛好運精油組
-  ["胖胖貓 (小)"],                // 緊接排在上面這個下方(注意:比對順序要在較specific的品項之後)
+// 一般品項(非黑熊/永生花/盆景/注意品項/雷雕)的分區順序:
+//   A 區:注意品項(由 SPECIAL_CATEGORIES 優先序處理,不在這裡) → 其他(不屬於 B、C、D 任一區的品項)
+//   B 區:好運禮盒系列 → 護手霜 → 消波塊(禮盒版→一般版) → 精油貓(禮盒版→一般版)
+//   C 區:胖胖貓(組內再依小→中→大排序,見下方 extractSize,規則不變)
+//   D 區:星座貓(組內再依星座順序排序,見下方 extractZodiac,規則不變)
+// 消波塊 / 精油貓有明確商品編號,直接比對編號最準,不再靠關鍵字硬湊。
+// 找不到對應區塊的品項回傳 -1,讓它排在 B、C、D 三區之前(即「其他」)。
+const ZONE_ORDER = [
+  { keys: ["護手霜"] },                        // B1 護手霜
+  { code: PRODUCT_CODES.TETRAPOD_BOX },        // B2 消波塊(禮盒版)
+  { code: PRODUCT_CODES.TETRAPOD_NORMAL },     // B3 消波塊(一般版)
+  { code: PRODUCT_CODES.OIL_CAT_BOX },         // B4 精油貓(禮盒版)
+  { code: PRODUCT_CODES.OIL_CAT_NORMAL },      // B5 精油貓(一般版)
+  { keys: ["胖胖貓"] },                        // C  胖胖貓
+  { keys: ["星座貓"] },                        // D  星座貓
 ];
 
-function manualOrderRank(row) {
+function zoneRank(row) {
+  const code = String(row["商品編號"] ?? "").trim();
+  // 雙喵、團圓貓的商品名稱套用 REPLACE_PATTERNS 後會混進「胖胖貓」字樣
+  // (原始名稱是「胖胖招財招福貓…」),要先排除,不然會被 C 區關鍵字誤攔截
+  if (A_GROUP_ORDER.some(z => code === z.code)) return -1;
   const hs = rowHaystack(row);
-  const idx = MANUAL_ORDER_KEYWORDS.findIndex(keys => matchKeys(hs, keys));
+  const idx = ZONE_ORDER.findIndex(z => z.code ? code === z.code : matchKeys(hs, z.keys));
+  return idx === -1 ? -1 : idx;
+}
+
+// A 區(其他)內部:雙喵、團圓貓為同一群組,固定排在其他一般品項最前面,且雙喵 → 團圓貓
+const A_GROUP_ORDER = [
+  { code: PRODUCT_CODES.DOUBLE_CAT },    // 雙喵
+  { code: PRODUCT_CODES.REUNION_CAT },   // 團圓貓
+];
+
+function aGroupRank(row) {
+  const code = String(row["商品編號"] ?? "").trim();
+  const idx = A_GROUP_ORDER.findIndex(z => code === z.code);
+  return idx === -1 ? Infinity : idx;
+}
+
+// A 區(其他)內:雙手貓(原「圓滾滾幸運貓」,見上方 REPLACE_PATTERNS)一律依顏色排序,
+// 不分尺寸(中/大)或團圓版(三入)組合
+const A_COLOR_ORDER = ["黃", "黑", "白", "綠", "灰", "粉"];
+
+function isDoubleHandCat(row) {
+  return rowHaystack(row).includes("雙手貓");
+}
+
+function colorRank(row) {
+  const hs = rowHaystack(row);
+  const idx = A_COLOR_ORDER.findIndex(c => hs.includes(c));
   return idx === -1 ? Infinity : idx;
 }
 
@@ -1786,9 +1843,23 @@ rows.sort((a, b) => {
   const pb = prioMap[b["_類別"]] ?? 0;
   if (pa !== pb) return pa - pb;
 
-  // 1.2 手動指定順序,優先於下面所有排序規則
-  const ra = manualOrderRank(a), rb = manualOrderRank(b);
+  // 1.2 分區順序(B 好運禮盒系列 → C 胖胖貓 → D 星座貓),優先於下面所有排序規則;
+  // -1(其他/不屬於任何分區)一律排在 B、C、D 三區之前
+  const ra = zoneRank(a), rb = zoneRank(b);
   if (ra !== rb) return ra - rb;
+
+  // 1.3 A 區(其他)內部特殊分組
+  if (ra === -1) {
+    // 雙喵、團圓貓固定排在其他一般品項最前面,且雙喵 → 團圓貓
+    const aa = aGroupRank(a), ab = aGroupRank(b);
+    if (aa !== ab) return aa - ab;
+
+    // 雙手貓一律依顏色排序(黃→黑→白→綠→灰→粉),不分尺寸/團圓版
+    if (isDoubleHandCat(a) && isDoubleHandCat(b)) {
+      const ca = colorRank(a), cb = colorRank(b);
+      if (ca !== cb) return ca - cb;
+    }
+  }
 
   // 1.5 尺寸「小→中→大」排在一起,不管品項是什麼(同一分類內優先照尺寸分堆)
   const szA = extractSize(a), szB = extractSize(b);
