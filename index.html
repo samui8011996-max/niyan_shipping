@@ -2277,11 +2277,19 @@ function generateOutput() {
 const CODE_ALIASES = {
   "322027877": "322387422",  // 6色可選【辦公室小物】胖胖招財招福貓(小)+元寶 → 跟 322387422 是同一個「胖胖貓(小)六色」商品
   "322282246": "322415648",  // 精油貓(一般版,PRODUCT_CODES.OIL_CAT_NORMAL)→ 跟 322415648(精油貓禮盒版,PRODUCT_CODES.OIL_CAT_BOX)是同一個東西
+  "322027863": "322413765",  // 消波塊(一般版,PRODUCT_CODES.TETRAPOD_NORMAL)→ 跟 322413765(消波塊禮盒版,PRODUCT_CODES.TETRAPOD_BOX)是同一類,一起分區列印
 };
 
 function canonicalCode(code) {
   const c = String(code ?? "").trim();
   return CODE_ALIASES[c] || c;
+}
+
+// 有「禮盒版/一般版」別名合併的商品,禮盒版的訂單要排在前面(方便撿貨先出禮盒),
+// 新增類似的別名組合時,把禮盒版的商品編號也加進這裡
+const GIFT_BOX_CODES = new Set([PRODUCT_CODES.OIL_CAT_BOX, PRODUCT_CODES.TETRAPOD_BOX]);
+function isGiftBoxVariant(row) {
+  return GIFT_BOX_CODES.has(String(row["商品編號"] ?? "").trim());
 }
 
 // 雷雕(客製刻印)不管是辦公室品項、胖胖一對(小)、還是大/中雷雕,一律歸成同一類,
@@ -2367,8 +2375,12 @@ function pickGroupKey(row, splitBySpec) {
   return parts.length ? `${code}|${parts.join("|")}` : code;
 }
 
-// 同一張出貨單內部排序:金運/招福 → 尺寸 → 規格文字,盡量讓同色/同款排在一起方便撿貨
+// 同一張出貨單內部排序:禮盒版優先 → 金運/招福 → 尺寸 → 規格文字,盡量讓同色/同款排在一起方便撿貨
 function comparePickGroupRows(a, b) {
+  const boxA = isGiftBoxVariant(a) ? 0 : 1;
+  const boxB = isGiftBoxVariant(b) ? 0 : 1;
+  if (boxA !== boxB) return boxA - boxB;
+
   const s1 = styleOrder(a) - styleOrder(b);
   if (s1 !== 0) return s1;
   const szA = extractSize(a), szB = extractSize(b);
@@ -2450,18 +2462,34 @@ function addonSummaryLine(rows) {
 function buildFineBreakdown(rows) {
   const map = new Map();
   rows.forEach(row => {
-    const key = `${pickGroupKey(row, false)}::${breakdownLabel(row)}`;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(row);
+    const groupKey = pickGroupKey(row, false);
+    const key = `${groupKey}::${breakdownLabel(row)}`;
+    if (!map.has(key)) map.set(key, { groupKey, rows: [] });
+    map.get(key).rows.push(row);
   });
-  return Array.from(map.values()).map(groupRows => ({
+
+  const entries = Array.from(map.values()).map(({ groupKey, rows: groupRows }) => ({
     rows: groupRows,
+    groupKey,
     qty: groupRows.reduce((s, r) => s + (parseInt(r["數量"], 10) || 1), 0),
     fullName: breakdownLabel(groupRows[0]),
     // 分組時已經把加購濾掉了,靠這行補回加購資訊(彙總各種加購選項的件數),不限胖胖貓,全品項都適用
     addonSummary: addonSummaryLine(groupRows),
-    // 照筆數多到少排序,最大筆的排第一,方便優先處理數量多的規格
-  })).sort((a, b) => b.qty - a.qty || a.fullName.localeCompare(b.fullName));
+  }));
+
+  // 同一個粗分組(例如消波塊禮盒版+一般版合併後,是同一個 pickGroupKey)的規格明細要排在一起,
+  // 不能單純照件數排,不然會被打散到清單各處、看不出是同一個商品。
+  // 組跟組之間仍照「這組的件數總和」由多到少排(大宗品項排前面),組內再照件數排序。
+  const groupTotals = new Map();
+  entries.forEach(e => groupTotals.set(e.groupKey, (groupTotals.get(e.groupKey) || 0) + e.qty));
+
+  return entries.sort((a, b) => {
+    if (a.groupKey !== b.groupKey) {
+      const totalDiff = groupTotals.get(b.groupKey) - groupTotals.get(a.groupKey);
+      return totalDiff !== 0 ? totalDiff : a.groupKey.localeCompare(b.groupKey);
+    }
+    return b.qty - a.qty || a.fullName.localeCompare(b.fullName);
+  });
 }
 
 // 「獨立出單品項」展開明細 + 分單勾選用:同一群組內商品編號/星座/尺寸都已經一樣,
@@ -2618,7 +2646,7 @@ function renderZonedGroupList(groups) {
       <div style="display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
         <span style="flex: 1;">${escapeHtml(b.fullName)}${b.addonSummary ? `<span style="color: var(--text-mute); margin-left: 12px;">${escapeHtml(b.addonSummary)}</span>` : ""}</span>
         <button class="btn btn-secondary btn-small" onclick="extractZonedSpec(${idx}, ${si})" style="flex-shrink: 0;">分單</button>
-        <span style="color: var(--text-mute); white-space: nowrap; flex-shrink: 0;">${b.qty} 件 · ${b.rows.length} 筆</span>
+        <span style="color: var(--text); font-weight: 700; white-space: nowrap; flex-shrink: 0;">${b.qty} 件 · ${b.rows.length} 筆</span>
       </div>
     `).join("");
 
@@ -2680,7 +2708,7 @@ function renderZonedMergedBlock(mergedRows, threshold) {
   const itemLines = detailLines.map(d => `
     <div class="problem-item-row1" style="justify-content: space-between; width: 100%;">
       <span>${escapeHtml(d.fullName)}${d.addonSummary ? `<span style="color: var(--text-mute); margin-left: 12px;">${escapeHtml(d.addonSummary)}</span>` : ""}</span>
-      <span style="color: var(--text-mute); font-size: 12px; white-space: nowrap;">${d.qty} 件 · ${d.rows.length} 筆</span>
+      <span style="color: var(--text); font-weight: 700; font-size: 13px; white-space: nowrap;">${d.qty} 件 · ${d.rows.length} 筆</span>
     </div>
   `).join("");
 
