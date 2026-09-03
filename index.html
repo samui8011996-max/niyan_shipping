@@ -907,6 +907,37 @@
     accent-color: var(--cat-red-num);
     cursor: pointer;
   }
+
+  /* 自訂樣式的方形勾選框(取代瀏覽器原生的白色方框),分區列印的品項/併單勾選都用這個 */
+  .zoned-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-input);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .zoned-checkbox:hover { border-color: var(--accent-2); }
+  .zoned-checkbox:checked {
+    background: var(--accent-2);
+    border-color: var(--accent-2);
+  }
+  .zoned-checkbox:checked::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid #0a0d14;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
   .problem-item .pi-tracking {
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
@@ -984,6 +1015,9 @@
       </button>
       <button class="tab" data-tab="returns" onclick="switchTab('returns')">
         ↩️  包裹退貨
+      </button>
+      <button class="tab" data-tab="zoned" onclick="switchTab('zoned')">
+        🧪  分區列印<span style="opacity:.6; font-size:11px; margin-left:2px;">BETA</span>
       </button>
     </div>
 
@@ -1335,6 +1369,85 @@
       </div>
     </div>
 
+    <!-- ================ Tab 5: 分區列印 ================ -->
+    <div id="tab-zoned" class="tab-panel">
+
+      <section class="card">
+        <div class="card-label">LINE 訂單總表</div>
+        <div class="file-row">
+          <div id="zonedFileDisplay" class="file-display empty">尚未選擇檔案…</div>
+          <input type="file" id="zonedFileInput" class="file-input-hidden" accept=".xlsx,.xls">
+          <button class="btn btn-secondary" onclick="document.getElementById('zonedFileInput').click()">
+            選擇檔案…
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-label">分區規則</div>
+        <p style="margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--accent-2); line-height: 1.7;">
+          同品項(含顏色/星座/尺寸)超過門檻獨立出單,沒超過就併入「其他合併」——
+          清單裡每項都能展開看規格明細,用「分單」「併單」隨時手動調整。
+        </p>
+        <label style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px; font-weight: 500;">
+          合併門檻(單一品項數量沒超過幾個就併入「其他合併」)
+        </label>
+        <input type="number" id="zonedThreshold" class="form-input" value="5" min="1" step="1"
+               style="max-width: 120px;" onchange="updateZonedStats(loadedRows)">
+      </section>
+
+      <div class="actions">
+        <button id="zonedPrintBtn" class="btn btn-primary" disabled onclick="generateZonedOutput()" title="一次下載目前清單上的所有品項(獨立品項 + 其他合併),下載過的會反綠標示已印,避免重複列印">
+          ▶  下載分區黑貓出貨表
+        </button>
+      </div>
+
+      <div id="zonedStatus" class="status">等待選擇 LINE 訂單檔…</div>
+
+      <div class="stats-header">
+        <span class="stats-title">分區筆數預覽</span>
+      </div>
+
+      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-card normal">
+          <div class="stat-label">一般訂單數(總共/已印)</div>
+          <div>
+            <span id="zoned-stat-regular-total" class="stat-number">—</span><span class="stat-unit">/</span><span id="zoned-stat-regular-printed" class="stat-number" style="color: var(--cat-green-num);">—</span><span class="stat-unit">筆</span>
+          </div>
+          <div class="stat-sub">扣掉黑熊/盆景/離島;印了就從總共扣</div>
+        </div>
+        <div class="stat-card cyan">
+          <div class="stat-label">總出貨單</div>
+          <div><span id="zoned-stat-total-docs" class="stat-number">—</span><span class="stat-unit">張</span></div>
+          <div class="stat-sub">將生成的單(獨立品項 + 其他合併)</div>
+        </div>
+        <div class="stat-card lavender">
+          <div class="stat-label">已印單數</div>
+          <div><span id="zoned-stat-printed-docs" class="stat-number">—</span><span class="stat-unit">張</span></div>
+          <div class="stat-sub">已下載列印,避免重複列印</div>
+        </div>
+      </div>
+
+      <div class="stats-header" style="margin-top: 18px;">
+        <span class="stats-title">獨立出單品項(依件數排序,每項可單獨下載列印)</span>
+        <label style="display: flex; align-items: center; gap: 6px; margin-left: auto; cursor: pointer; user-select: none; font-size: 13px;">
+          <input type="checkbox" id="zonedSelectAllCheckbox" class="zoned-checkbox" onchange="toggleZonedSelectAll(this.checked)">
+          全選
+        </label>
+        <button class="btn btn-secondary btn-small" onclick="mergeZonedGroups()">併單</button>
+        <button class="btn btn-primary btn-small" onclick="downloadZonedSelected()">⬇ 全部下載</button>
+      </div>
+      <div id="zonedGroupList" class="problem-list">
+        <div class="problem-empty">尚未載入訂單</div>
+      </div>
+
+      <div class="stats-header" style="margin-top: 18px;">
+        <span class="stats-title">其他合併(品項少,併成同一張)</span>
+      </div>
+      <div id="zonedMergedBlock" class="problem-list"></div>
+
+    </div>
+
     <div class="footer">
       資料不會離開你的瀏覽器  ·  v9.0
     </div>
@@ -1603,6 +1716,11 @@ let bcDetailData = null;
 let lastStats = null;              // 最近一次算出來的統計
 let lastUnmatchedOrders = [];      // 目前配對後找不到託運單號的訂單清單 [{orderId}]
 let unmatchedDeleteSet = new Set(); // 使用者勾選「匯出時直接刪除」的訂單編號
+let zonedGroupsCache = [];         // 分區列印:目前預覽列表對應的「獨立出單」品項分組,index 給「下載列印」按鈕用
+let zonedMergedRowsCache = [];     // 分區列印:目前「其他合併」的攤平訂單列表,給合併區塊的下載按鈕用
+let zonedExpandedLabels = new Set(); // 分區列印:目前展開規格明細的品項標籤,重新渲染清單時保持展開狀態
+let zonedMergedDownloaded = false; // 分區列印:「其他合併」是否已經下載過,下載後反顏色提醒
+let zonedRegularTotal = 0;         // 分區列印:目前這批資料的一般訂單總筆數,給「總共/已印」字卡用
 
 // ===================================================================
 // 核心邏輯 (出貨表)
@@ -1710,25 +1828,7 @@ function computeStats(rows) {
   return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders, offshore };
 }
 
-async function handleFile(file) {
-  setStatus("status", "loading", "讀取中…");
-  try {
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data, { type: "array" });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false, defval: "" });
-
-    if (rows.length === 0) throw new Error("訂單表沒有資料");
-    const missing = REQUIRED_COLS.filter(c => !(c in rows[0]));
-    if (missing.length > 0) throw new Error(`缺少欄位:${missing.join("、")}`);
-
-    rows.forEach(r => {
-      r["_備註"] = buildNote(r);
-      r["_類別列表"] = categorizeAll(r);
-      r["_類別"] = r["_類別列表"][0] || null;
-      r["_離島"] = extractOffshoreCounty(r["配送地址"]);
-    });
-
-  // 取「乾淨的品項名」作為排序鍵 → 同品項一定排一起
+// 取「乾淨的品項名」作為排序鍵 → 同品項一定排一起
 // 例如「【泥研製所||辦公室小物】胖胖招財招福貓 (小)」和「【辦公室小物】胖胖招財招福貓 (小)」
 // 經過 REMOVE_PATTERNS 清理後會變成同字串,就能合併
 function cleanProductName(name) {
@@ -1790,6 +1890,7 @@ function matchKeys(hs, keys) {
 //   D 區:星座貓(組內再依星座順序排序,見下方 extractZodiac,規則不變)
 // 消波塊 / 精油貓有明確商品編號,直接比對編號最準,不再靠關鍵字硬湊。
 // 找不到對應區塊的品項回傳 -1,讓它排在 B、C、D 三區之前(即「其他」)。
+// 只給下方 handleFile 的單一出貨表排序用;分區列印已改成依商品編號分組(見 buildPickGroups),不再用這組 ABCD 順序。
 const ZONE_ORDER = [
   { keys: ["護手霜"] },                        // B1 護手霜
   { code: PRODUCT_CODES.TETRAPOD_BOX },        // B2 消波塊(禮盒版)
@@ -1836,7 +1937,25 @@ function colorRank(row) {
   return idx === -1 ? Infinity : idx;
 }
 
-const prioMap = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, c.priority]));
+async function handleFile(file, statusId = "status") {
+  setStatus(statusId, "loading", "讀取中…");
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: "array" });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false, defval: "" });
+
+    if (rows.length === 0) throw new Error("訂單表沒有資料");
+    const missing = REQUIRED_COLS.filter(c => !(c in rows[0]));
+    if (missing.length > 0) throw new Error(`缺少欄位:${missing.join("、")}`);
+
+    rows.forEach(r => {
+      r["_備註"] = buildNote(r);
+      r["_類別列表"] = categorizeAll(r);
+      r["_類別"] = r["_類別列表"][0] || null;
+      r["_離島"] = extractOffshoreCounty(r["配送地址"]);
+    });
+
+    const prioMap = Object.fromEntries(SPECIAL_CATEGORIES.map(c => [c.name, c.priority]));
 rows.sort((a, b) => {
   // 1. 特殊類別優先序(黑熊 > 永生花 > 盆景 > 注意品項 > 雷雕 > 一般)
   const pa = prioMap[a["_類別"]] ?? 0;
@@ -1895,7 +2014,9 @@ rows.sort((a, b) => {
     const uploadableCount = UPLOAD_CATEGORIES.reduce((s, c) => s + (counts[c] ?? 0), 0);
     document.getElementById("uploadBtn").disabled = false;
     document.getElementById("offshorePdfBtn").disabled = !rows.some(r => r["_離島"]);
-    setStatus("status", "success", `✓ 已載入 ${rows.length} 筆資料,可執行匯出`);
+    document.getElementById("zonedPrintBtn").disabled = false;
+    updateZonedStats(rows);
+    setStatus(statusId, "success", `✓ 已載入 ${rows.length} 筆資料,可執行匯出`);
 
     // 載入完成後比對問題訂單清單
     checkProblemOrdersAgainstLoaded();
@@ -1904,8 +2025,10 @@ rows.sort((a, b) => {
     document.getElementById("runBtn").disabled = true;
     document.getElementById("uploadBtn").disabled = true;
     document.getElementById("offshorePdfBtn").disabled = true;
-    setStatus("status", "error", `✗ 讀取失敗:${e.message}`);
+    document.getElementById("zonedPrintBtn").disabled = true;
+    setStatus(statusId, "error", `✗ 讀取失敗:${e.message}`);
     resetShippingStats();
+    resetZonedStats();
     hideProblemAlert();
   }
 }
@@ -2025,6 +2148,85 @@ function copyVendorBlock(btn) {
 
 const MAX_ROWS_PER_FILE = 100;
 
+// 把一批已排序好的訂單資料寫成一或多份黑貓出貨表 xlsx(超過 MAX_ROWS_PER_FILE 自動分檔);
+// filePrefix 例如 "黑貓出貨表" 或 "黑貓出貨表_A區",回傳實際檔案數與命中的問題訂單數,給呼叫端組出狀態訊息
+function writeBcatFiles(rows, filePrefix) {
+  const today = todayStr();
+  const total = rows.length;
+  const fileCount = Math.ceil(total / MAX_ROWS_PER_FILE);
+  const catMap = Object.fromEntries(
+    SPECIAL_CATEGORIES.map(c => [c.name, { bg: c.bg, fg: c.fg }])
+  );
+
+  // 問題訂單橘色樣式 (優先於分類色)
+  const PROBLEM_STYLE = { bg: "FF8F00", fg: "FFFFFF" };
+  const problemIds = new Set(problemListCache.map(p => p.orderId));
+  let problemHitInExport = 0;
+
+  for (let part = 0; part < fileCount; part++) {
+    const start = part * MAX_ROWS_PER_FILE;
+    const end = Math.min(start + MAX_ROWS_PER_FILE, total);
+    const chunk = rows.slice(start, end);
+
+    const aoa = [TEMPLATE_HEADERS.slice()];
+    const rowStyles = [];
+
+    chunk.forEach(row => {
+      const newRow = new Array(TEMPLATE_HEADERS.length).fill("");
+      for (const [src, dst] of Object.entries(FIELD_MAPPING)) {
+        const col = TEMPLATE_HEADERS.indexOf(dst);
+        if (col >= 0) newRow[col] = row[src] ?? "";
+      }
+      newRow[TEMPLATE_HEADERS.indexOf("備註")] = row["_備註"];
+      newRow[TEMPLATE_HEADERS.indexOf("寄件人姓名")] = SENDER_NAME;
+      newRow[TEMPLATE_HEADERS.indexOf("件數")] = ITEM_COUNT;
+      newRow[TEMPLATE_HEADERS.indexOf("品名(詳參數表)")] = ITEM_NAME_CODE;
+      aoa.push(newRow);
+
+      // 問題訂單優先 → 橘色;否則才用原本分類顏色
+      const orderId = String(row["訂單編號"] ?? "").trim();
+      if (orderId && problemIds.has(orderId)) {
+        rowStyles.push(PROBLEM_STYLE);
+        problemHitInExport++;
+      } else {
+        rowStyles.push(row["_類別"] ? catMap[row["_類別"]] : null);
+      }
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    rowStyles.forEach((style, i) => {
+      if (!style) return;
+      const excelRow = i + 1;
+      for (let c = 0; c < TEMPLATE_HEADERS.length; c++) {
+        const addr = XLSX.utils.encode_cell({ r: excelRow, c });
+        if (!ws[addr]) ws[addr] = { t: "s", v: "" };
+        ws[addr].s = {
+          fill: { patternType: "solid", fgColor: { rgb: style.bg } },
+          font: { color: { rgb: style.fg }, bold: true },
+        };
+      }
+    });
+
+    ws["!cols"] = TEMPLATE_HEADERS.map(h => {
+      if (h === "收件人地址" || h === "備註") return { wch: 32 };
+      if (h === "收件人姓名" || h === "寄件人姓名") return { wch: 14 };
+      if (h === "訂單編號") return { wch: 22 };
+      if (h === "收件人手機") return { wch: 13 };
+      return { wch: 10 };
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "空白傳託運單資料表");
+
+    const filename = fileCount === 1
+      ? `${filePrefix}_${today}.xlsx`
+      : `${filePrefix}_${today}_${part + 1}_共${fileCount}.xlsx`;
+    XLSX.writeFile(wb, filename, { cellStyles: true, bookType: "xlsx" });
+  }
+
+  return { fileCount, problemHitInExport };
+}
+
 function generateOutput() {
   if (!loadedRows) return;
   setStatus("status", "loading", "產生出貨表中…");
@@ -2040,87 +2242,641 @@ function generateOutput() {
       }
 
       const excludedCount = loadedRows.length - exportRows.length;
-      const total = exportRows.length;
-      const fileCount = Math.ceil(total / MAX_ROWS_PER_FILE);
       const today = todayStr();
-      const catMap = Object.fromEntries(
-        SPECIAL_CATEGORIES.map(c => [c.name, { bg: c.bg, fg: c.fg }])
-      );
-
-      // 問題訂單橘色樣式 (優先於分類色)
-      const PROBLEM_STYLE = { bg: "FF8F00", fg: "FFFFFF" };
-      const problemIds = new Set(problemListCache.map(p => p.orderId));
-      let problemHitInExport = 0;
-
-      for (let part = 0; part < fileCount; part++) {
-        const start = part * MAX_ROWS_PER_FILE;
-        const end = Math.min(start + MAX_ROWS_PER_FILE, total);
-        const chunk = exportRows.slice(start, end);
-
-        const aoa = [TEMPLATE_HEADERS.slice()];
-        const rowStyles = [];
-
-        chunk.forEach(row => {
-          const newRow = new Array(TEMPLATE_HEADERS.length).fill("");
-          for (const [src, dst] of Object.entries(FIELD_MAPPING)) {
-            const col = TEMPLATE_HEADERS.indexOf(dst);
-            if (col >= 0) newRow[col] = row[src] ?? "";
-          }
-          newRow[TEMPLATE_HEADERS.indexOf("備註")] = row["_備註"];
-          newRow[TEMPLATE_HEADERS.indexOf("寄件人姓名")] = SENDER_NAME;
-          newRow[TEMPLATE_HEADERS.indexOf("件數")] = ITEM_COUNT;
-          newRow[TEMPLATE_HEADERS.indexOf("品名(詳參數表)")] = ITEM_NAME_CODE;
-          aoa.push(newRow);
-
-          // 問題訂單優先 → 橘色;否則才用原本分類顏色
-          const orderId = String(row["訂單編號"] ?? "").trim();
-          if (orderId && problemIds.has(orderId)) {
-            rowStyles.push(PROBLEM_STYLE);
-            problemHitInExport++;
-          } else {
-            rowStyles.push(row["_類別"] ? catMap[row["_類別"]] : null);
-          }
-        });
-
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-        rowStyles.forEach((style, i) => {
-          if (!style) return;
-          const excelRow = i + 1;
-          for (let c = 0; c < TEMPLATE_HEADERS.length; c++) {
-            const addr = XLSX.utils.encode_cell({ r: excelRow, c });
-            if (!ws[addr]) ws[addr] = { t: "s", v: "" };
-            ws[addr].s = {
-              fill: { patternType: "solid", fgColor: { rgb: style.bg } },
-              font: { color: { rgb: style.fg }, bold: true },
-            };
-          }
-        });
-
-        ws["!cols"] = TEMPLATE_HEADERS.map(h => {
-          if (h === "收件人地址" || h === "備註") return { wch: 32 };
-          if (h === "收件人姓名" || h === "寄件人姓名") return { wch: 14 };
-          if (h === "訂單編號") return { wch: 22 };
-          if (h === "收件人手機") return { wch: 13 };
-          return { wch: 10 };
-        });
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "空白傳託運單資料表");
-
-        const filename = fileCount === 1
-          ? `黑貓出貨表_${today}.xlsx`
-          : `黑貓出貨表_${today}_${part + 1}_共${fileCount}.xlsx`;
-        XLSX.writeFile(wb, filename, { cellStyles: true, bookType: "xlsx" });
-      }
+      const { fileCount, problemHitInExport } = writeBcatFiles(exportRows, "黑貓出貨表");
 
       let msg = fileCount === 1
-        ? `✓ 已下載黑貓出貨表_${today}.xlsx  (${total} 筆)`
-        : `✓ 已下載 ${fileCount} 個檔案  (共 ${total} 筆)`;
+        ? `✓ 已下載黑貓出貨表_${today}.xlsx  (${exportRows.length} 筆)`
+        : `✓ 已下載 ${fileCount} 個檔案  (共 ${exportRows.length} 筆)`;
       if (excludedCount > 0) msg += `  · 另 ${excludedCount} 筆(黑熊/盆景/離島)請用上傳`;
       if (problemHitInExport > 0) msg += `  · 🟧 ${problemHitInExport} 筆問題訂單已橘色反白`;
       setStatus("status", "success", msg);
     } catch (e) {
       setStatus("status", "error", `✗ 匯出失敗:${e.message}`);
+      console.error(e);
+    }
+  }, 50);
+}
+
+// ===================================================================
+// 分區列印:依「商品編號」分組(方便撿貨),不再用 ABCD 分區。
+// 規則:
+//   1. 同商品編號(含別名,見 CODE_ALIASES)分成一組,組內數量加總「超過」門檻(預設 5)
+//      → 單獨產生一張黑貓出貨單
+//   2. 沒超過門檻的品項,全部併入同一張「其他合併」出貨單
+//      (太少的話每個品項各出一張,列印張數暴增,反而不利撿貨)
+//   3. 星座(星座貓)、尺寸(小/中/大)是撿貨會拿不同盒子的物理差異,不管有沒有勾選細分,
+//      一律先照這兩個拆開,同編號不代表可以合在一起撿貨
+//   4. 勾選「同編號內再依顏色/規格細分」時,分組 key 會再多接規格設定全文一起比對,
+//      同編號但不同顏色/規格也能各自獨立出一張單
+// 商品編號、名稱的權威資料來源是「全商品.xls」;新增別名時對照該表確認是同一實體商品。
+// ===================================================================
+
+// 賣場常常同一個實體商品開兩個以上的商品編號(不同活動/版位上架),要當同一品項合併撿貨。
+// key = 別名編號,value = 要合併過去的正式(代表)編號,選誰當代表不影響列印結果
+const CODE_ALIASES = {
+  "322027877": "322387422",  // 6色可選【辦公室小物】胖胖招財招福貓(小)+元寶 → 跟 322387422 是同一個「胖胖貓(小)六色」商品
+  "322282246": "322415648",  // 精油貓(一般版,PRODUCT_CODES.OIL_CAT_NORMAL)→ 跟 322415648(精油貓禮盒版,PRODUCT_CODES.OIL_CAT_BOX)是同一個東西
+};
+
+function canonicalCode(code) {
+  const c = String(code ?? "").trim();
+  return CODE_ALIASES[c] || c;
+}
+
+// 雷雕(客製刻印)不管是辦公室品項、胖胖一對(小)、還是大/中雷雕,一律歸成同一類,
+// 不照商品/尺寸拆開 —— 這些訂單撿貨後都是送去同一個雷雕站,重點是「要不要雷雕」,不是雷雕的是什麼商品。
+// 判斷邏輯跟 SPECIAL_CATEGORIES 的「雷雕」關鍵字比對規則一致(見 categorizeAll)。
+function isLaserItem(row) {
+  const hs = [row["商品名稱"], row["規格設定"], row["客製刻印選項"], row["_備註"]]
+    .map(s => String(s ?? "")).join(" ");
+  return hs.includes("雷雕");
+}
+
+// 胖胖招財招福貓「素體」款式非常多(顏色、金運/招福、單隻/一對……都各自開一個商品編號),
+// 但撿貨只在乎尺寸(要拿哪個尺寸的箱子/袋子)和金運/招福(公仔款式不同,不能混拿),
+// 顏色這種更細的差異才交給展開明細 + 分單處理,所以一律先照「尺寸 + 金運/招福」分,不看商品編號。
+// 借用 zoneRank 既有的判斷順序(已經排除雙喵/團圓貓,也已經讓護手霜、消波塊、精油貓等特例組合
+// 優先比對命中,不會被這裡的廣義「胖胖貓」關鍵字誤吃掉),確保跟 tab1 出貨表排序邏輯認定一致。
+const PANGPANG_ZONE_INDEX = ZONE_ORDER.findIndex(z => z.keys && z.keys[0] === "胖胖貓");
+function isPangpangCat(row) {
+  return zoneRank(row) === PANGPANG_ZONE_INDEX;
+}
+
+// 星座貓(+元寶)常常換季重新上架,商品編號一直換,同一星座卻對到好幾個不同編號;
+// 撿貨只在乎星座是哪一個,所以不管有沒有勾「依規格細分」,星座貓一律先照星座拆開,同星座才算同一品項
+function zodiacGroupSuffix(row) {
+  if (!isZodiacCat(row)) return null;
+  const zi = extractZodiac(row);
+  return zi === -1 ? "其他星座" : ZODIAC_SIGNS[zi];
+}
+
+// 尺寸(小/中/大)一樣是撿貨會拿不同盒子的物理差異,cleanProductName 為了排序把它從名稱去掉了,
+// 分組/標籤要靠 extractSize 加回來,不然不同尺寸的胖胖貓會併成同一組、同一個檔名
+const SIZE_LABELS = ["小", "中", "大"];
+function sizeGroupSuffix(row) {
+  const idx = extractSize(row);
+  return idx === -1 ? null : SIZE_LABELS[idx];
+}
+
+// 金運/招福是不同的公仔款式,實體長得不一樣,撿貨不能混拿,借用既有的 styleOrder 判斷
+// (0=金運、1=招福、2=看不出來),一律給明確的分組後綴,不留模糊地帶
+function styleGroupSuffix(row) {
+  const s = styleOrder(row);
+  return s === 0 ? "金運" : s === 1 ? "招福" : "其他公仔";
+}
+
+// 「一對」是兩隻一組的組合裝,包裝/撿貨方式跟單隻不一樣,要獨立分開,不能跟單隻同一個尺寸/款式混在一起算
+function isPangpangPair(row) {
+  return rowHaystack(row).includes("一對");
+}
+
+// 組出這筆訂單的分組後綴(依序:星座、尺寸,勾選「依規格細分」時再外加規格設定全文);
+// pickGroupKey(分組用) 和 buildPickGroups 的品項標籤共用同一份規則,確保「同一組」跟「同一個標籤」永遠對得上
+function groupSuffixParts(row, splitBySpec) {
+  const parts = [];
+  const zodiac = zodiacGroupSuffix(row);
+  if (zodiac) parts.push(zodiac);
+  const size = sizeGroupSuffix(row);
+  if (size) parts.push(size);
+  if (splitBySpec) {
+    const spec = String(row["規格設定"] ?? "").trim();
+    if (spec) parts.push(spec);
+  }
+  return parts;
+}
+
+function pickGroupKey(row, splitBySpec) {
+  // 雷雕最優先判斷:不管商品、尺寸,一律歸同一類
+  if (isLaserItem(row)) return "LASER";
+
+  // 星座貓常常換季重新上架、商品編號一直換,但同一個星座其實是同一個實體商品,
+  // 撿貨只在乎星座,不在乎是哪一次上架的編號 → 一律只用星座當 key,完全不看商品編號
+  const zodiac = zodiacGroupSuffix(row);
+  if (zodiac) return `ZODIAC|${zodiac}`;
+
+  // 胖胖貓「素體」款式(顏色/金運招福)一律只看尺寸+款式,不看商品編號;
+  // 一對(兩隻一組)另外獨立分開,不跟單隻的同尺寸/款式混在一起
+  if (isPangpangCat(row)) {
+    const pair = isPangpangPair(row) ? "PAIR" : "SINGLE";
+    return `PANGPANG|${pair}|${sizeGroupSuffix(row) || "無尺寸"}|${styleGroupSuffix(row)}`;
+  }
+
+  const code = canonicalCode(row["商品編號"]);
+  const parts = groupSuffixParts(row, splitBySpec);
+  return parts.length ? `${code}|${parts.join("|")}` : code;
+}
+
+// 同一張出貨單內部排序:金運/招福 → 尺寸 → 規格文字,盡量讓同色/同款排在一起方便撿貨
+function comparePickGroupRows(a, b) {
+  const s1 = styleOrder(a) - styleOrder(b);
+  if (s1 !== 0) return s1;
+  const szA = extractSize(a), szB = extractSize(b);
+  if (szA !== -1 && szB !== -1 && szA !== szB) return szA - szB;
+  return String(a["規格設定"] ?? "").localeCompare(String(b["規格設定"] ?? ""));
+}
+
+function sanitizeFilenamePart(s) {
+  return String(s ?? "").replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 40);
+}
+
+// 併過 CODE_ALIASES 的品項,不同編號的原始商品名稱往往長得不一樣(例如精油貓禮盒版寫「+精油禮盒」,
+// 一般版寫「繽紛好運精油組」);標籤要挑固定的一列當範本,不然同一品項會因為訂單裡誰先出現,
+// 每次匯出顯示不同名稱。優先挑「商品編號本身就是代表編號」的那一列,沒有的話才退回第一列。
+function pickGroupSampleRow(rows) {
+  const canon = canonicalCode(rows[0]["商品編號"]);
+  return rows.find(r => String(r["商品編號"] ?? "").trim() === canon) || rows[0];
+}
+
+// 完整品項名稱:直接用 _備註(跟 handleFile 一開始算好、實際會印在黑貓出貨單「備註」欄的同一份文字),
+// 已經套過 REPLACE/REMOVE 規則清掉「限定登場｜」「不加購」這類雜訊,不是原始規格設定的生文字。
+// 結尾的 x數量 展開明細另外顯示件數,這裡拿掉避免重複。
+function fullItemLabel(row) {
+  const note = String(row["_備註"] ?? "").trim().replace(/\s*[x×]\s*\d+\s*$/i, "").trim();
+  return note || cleanProductName(row["商品名稱"]) || "(無品名)";
+}
+
+// 拿掉「加購OO: XXX」這段描述(不管有沒有真的加購了什麼),胖胖貓展開明細只在乎顏色/款式,
+// 加購精油口味、要不要木片底座這些額外選項不該讓同一個顏色被拆成好幾個假分組
+function stripAddonText(text) {
+  let s = String(text ?? "")
+    .replace(/[,，]?\s*\+?加購[一-鿿A-Za-z0-9]*\s*[:：][^,，]*/g, "");
+  // 去掉結尾殘留的逗號/破折號(客製刻印選項是空值時常留下的佔位符),
+  // 不然「有加購被濾掉」跟「原本就沒加購」的兩種訂單,結尾會一個有 " -" 一個沒有,誤判成不同分組
+  s = s.replace(/[\s,，]*-\s*$/, "");
+  return s.replace(/\s+/g, " ").trim();
+}
+
+// 展開明細用的顯示文字:一律濾掉加購選項文字(不管哪種品項),加購資訊改用 addonSummary
+// 另外彙總成一行(見下方 addonSummaryLine),不然同一個品項會因為加購選項不同被拆成一堆假分組
+function breakdownLabel(row) {
+  return stripAddonText(fullItemLabel(row)) || fullItemLabel(row);
+}
+
+// 從完整品項名稱裡的「加購OO: XXX」擷取簡短描述,例如「+加購精油: 茶樹」→「精油-茶樹」,
+// 「+加購木片底座: 木片」→「木片」(欄位名跟選項值重複時只顯示選項值),完全沒有加購欄位 → 「無」
+function extractAddonSummary(row) {
+  const note = fullItemLabel(row);
+  const matches = [...note.matchAll(/\+?加購([一-鿿A-Za-z0-9]*)\s*[:：]\s*([^,，]*)/g)];
+  if (matches.length === 0) return "無加購";
+  return matches.map(([, kind, val]) => {
+    const k = String(kind ?? "").trim();
+    const v = String(val ?? "").trim();
+    if (!v) return k || "加購";
+    if (!k || k.includes(v) || v.includes(k)) return v;
+    return `${k}-${v}`;
+  }).join("+");
+}
+
+// 展開明細分組雖然不看加購,但加購資訊還是要看得到,
+// 所以把同一組底下各種加購選項的件數彙總成一行,寫在品名旁邊,例如「無(3) 精油-茶樹(2) 木片(5)」
+function addonSummaryLine(rows) {
+  const counts = new Map();
+  rows.forEach(row => {
+    const desc = extractAddonSummary(row);
+    const qty = parseInt(row["數量"], 10) || 1;
+    counts.set(desc, (counts.get(desc) || 0) + qty);
+  });
+  return Array.from(counts.entries())
+    .sort((a, b) => (a[0] === "無加購" ? -1 : b[0] === "無加購" ? 1 : b[1] - a[1]))
+    .map(([desc, qty]) => `${desc}(${qty})`)
+    .join("　　");
+}
+
+// 展開明細(獨立品項的規格拆分、其他合併的併單明細)共用同一份分組邏輯:
+// 用清理過的顯示文字(breakdownLabel)當分組依據兼顯示文字,不用原始規格設定 ——
+// 規格設定裡常常一堆「+加購OO: 不加購」這種加購選項雜訊,拿來分組會把同一個品項拆成一堆幾乎一樣的假分組。
+// pickGroupKey(row, false) 確保還是先照商品編號/星座/尺寸分開,不會把不同商品混在一起算成同一列。
+function buildFineBreakdown(rows) {
+  const map = new Map();
+  rows.forEach(row => {
+    const key = `${pickGroupKey(row, false)}::${breakdownLabel(row)}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
+  });
+  return Array.from(map.values()).map(groupRows => ({
+    rows: groupRows,
+    qty: groupRows.reduce((s, r) => s + (parseInt(r["數量"], 10) || 1), 0),
+    fullName: breakdownLabel(groupRows[0]),
+    // 分組時已經把加購濾掉了,靠這行補回加購資訊(彙總各種加購選項的件數),不限胖胖貓,全品項都適用
+    addonSummary: addonSummaryLine(groupRows),
+    // 照筆數多到少排序,最大筆的排第一,方便優先處理數量多的規格
+  })).sort((a, b) => b.qty - a.qty || a.fullName.localeCompare(b.fullName));
+}
+
+// 「獨立出單品項」展開明細 + 分單勾選用:同一群組內商品編號/星座/尺寸都已經一樣,
+// 只是規格(通常是顏色)不同,所以直接沿用 buildFineBreakdown。
+function buildSpecBreakdown(rows) {
+  return buildFineBreakdown(rows);
+}
+
+// 「其他合併」展開明細用,同一套分組邏輯
+function buildMergedDetailLines(mergedRows) {
+  return buildFineBreakdown(mergedRows);
+}
+
+// 把 exportRows 依商品編號(或編號+規格)分組:
+//   ownGroups:數量超過門檻的品項,各自一組 { label, rows, qty }(依名稱排序)
+//   mergedGroups:沒超過門檻的品項,同樣各自一組 { label, rows, qty },但依數量由多到少排序
+//                (給下方「併單明細」預覽用,方便一眼看出哪些品項被併掉、各併了幾個)
+//   mergedRows:mergedGroups 攤平、排序好的版本,直接拿去寫「其他合併」出貨單
+function buildPickGroups(exportRows, splitBySpec, threshold) {
+  const groups = new Map();
+  exportRows.forEach(row => {
+    const key = pickGroupKey(row, splitBySpec);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  const ownGroups = [];
+  const mergedGroups = [];
+
+  for (const rows of groups.values()) {
+    const qty = rows.reduce((s, r) => s + (parseInt(r["數量"], 10) || 1), 0);
+    const sample = pickGroupSampleRow(rows);
+    // 雷雕、胖胖貓(依尺寸)這兩組都混了不同商品/顏色/款式,用固定文字當標籤,
+    // 不要拿其中一列的品名代表整組,不然會誤導成「這組只有這個商品」
+    let label;
+    if (isLaserItem(sample)) {
+      label = "雷雕客製刻印(不分商品/尺寸)";
+    } else if (isPangpangCat(sample)) {
+      const namePrefix = isPangpangPair(sample) ? "胖胖貓一對" : "胖胖貓";
+      label = `${namePrefix}(${sizeGroupSuffix(sample) || "無尺寸"} ${styleGroupSuffix(sample)})`;
+    } else {
+      const name = cleanProductName(sample["商品名稱"]);
+      const suffixParts = groupSuffixParts(sample, splitBySpec);
+      label = suffixParts.length ? `${name}(${suffixParts.join(" ")})` : name;
+    }
+    const entry = { rows: rows.slice().sort(comparePickGroupRows), qty, label };
+    (qty > threshold ? ownGroups : mergedGroups).push(entry);
+  }
+
+  ownGroups.sort((a, b) => a.label.localeCompare(b.label));
+  mergedGroups.sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label));
+
+  const mergedRows = mergedGroups.flatMap(g => g.rows).sort((a, b) => {
+    const n = cleanProductName(a["商品名稱"]).localeCompare(cleanProductName(b["商品名稱"]));
+    return n !== 0 ? n : comparePickGroupRows(a, b);
+  });
+
+  return { ownGroups, mergedGroups, mergedRows };
+}
+
+function getZonedOptions() {
+  // 「同編號內再依規格細分」勾選框已拿掉(展開明細 + 分單已經可以手動處理這件事,
+  // 不需要一個全域開關),固定不細分,只保留門檻可調
+  const splitBySpec = false;
+  const thresholdRaw = parseInt(document.getElementById("zonedThreshold")?.value, 10);
+  const threshold = Number.isFinite(thresholdRaw) && thresholdRaw > 0 ? thresholdRaw : 5;
+  return { splitBySpec, threshold };
+}
+
+function getZonedExportRows(rows) {
+  const EXCLUDE_FROM_LOCAL = new Set(["黑熊", "盆景公仔組"]);
+  return rows.filter(r => !EXCLUDE_FROM_LOCAL.has(r["_類別"]) && !r["_離島"]);
+}
+
+// 分區列印分頁的字卡+品項清單:載入訂單(或切換選項)後即時預覽分組結果,不用等下載才知道
+function updateZonedStats(rows) {
+  const elRegularTotal = document.getElementById("zoned-stat-regular-total");
+  if (!elRegularTotal) return;
+  if (!rows) { resetZonedStats(); return; }
+
+  const exportRows = getZonedExportRows(rows);
+  const { splitBySpec, threshold } = getZonedOptions();
+  const { ownGroups, mergedRows } = buildPickGroups(exportRows, splitBySpec, threshold);
+
+  zonedRegularTotal = exportRows.length;
+
+  // 獨立出單品項:依件數由多到少排序,每項各自一個下載按鈕
+  zonedGroupsCache = ownGroups.slice().sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label));
+  zonedMergedRowsCache = mergedRows;
+  zonedMergedDownloaded = false; // 資料重新產生,先前的下載狀態不再代表目前內容
+
+  renderZonedGroupList(zonedGroupsCache);
+  renderZonedMergedBlock(mergedRows, threshold);
+}
+
+// 「一般訂單數(總共/已印)」「總出貨單」「已印單數」幾張字卡的共用重算邏輯。
+// 出貨單張數用「文件數」計(獨立品項 1 項 = 1 張,其他合併整包算 1 張),不是訂單筆數,
+// 才跟使用者實際會按幾次下載對得上;已印訂單數則是把「已下載」品項的實際筆數加總,
+// 印了多少就會反映在「一般訂單數」卡片的已印數字上。
+// 只要清單有變動(下載/分單/併單)就會重新渲染,渲染時順便重算,不用另外在每個操作裡各呼叫一次。
+function updateZonedDocStats() {
+  const elTotal = document.getElementById("zoned-stat-total-docs");
+  const elPrinted = document.getElementById("zoned-stat-printed-docs");
+  const elRegularTotal = document.getElementById("zoned-stat-regular-total");
+  const elRegularPrinted = document.getElementById("zoned-stat-regular-printed");
+  if (!elTotal || !elPrinted) return;
+
+  const totalDocs = zonedGroupsCache.length + (zonedMergedRowsCache.length > 0 ? 1 : 0);
+  const printedDocs = zonedGroupsCache.filter(g => g.downloaded).length + (zonedMergedDownloaded ? 1 : 0);
+  elTotal.textContent = totalDocs;
+  elPrinted.textContent = printedDocs;
+
+  const printedOrders = zonedGroupsCache.filter(g => g.downloaded).reduce((s, g) => s + g.rows.length, 0)
+    + (zonedMergedDownloaded ? zonedMergedRowsCache.length : 0);
+  if (elRegularTotal) elRegularTotal.textContent = zonedRegularTotal;
+  if (elRegularPrinted) elRegularPrinted.textContent = printedOrders;
+}
+
+function resetZonedStats() {
+  ["zoned-stat-total-docs", "zoned-stat-printed-docs", "zoned-stat-regular-total", "zoned-stat-regular-printed"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "—";
+  });
+  zonedGroupsCache = [];
+  zonedMergedRowsCache = [];
+  zonedExpandedLabels = new Set();
+  zonedMergedDownloaded = false;
+  zonedRegularTotal = 0;
+  const list = document.getElementById("zonedGroupList");
+  if (list) list.innerHTML = `<div class="problem-empty">尚未載入訂單</div>`;
+  const merged = document.getElementById("zonedMergedBlock");
+  if (merged) merged.innerHTML = "";
+}
+
+// 獨立出單品項清單:每項各自的件數/筆數 + 一個「下載列印」按鈕,可以單獨下載那個品項的黑貓出貨單
+function renderZonedGroupList(groups) {
+  const container = document.getElementById("zonedGroupList");
+  if (!container) return;
+
+  // 清單內容變了(下載/併單/分單都會重畫清單),「全選」勾選框跟著重置,不然會殘留舊狀態誤導使用者
+  const selectAll = document.getElementById("zonedSelectAllCheckbox");
+  if (selectAll) selectAll.checked = false;
+
+  if (groups.length === 0) {
+    container.innerHTML = `<div class="problem-empty">目前沒有品項超過門檻,全部併入下方「其他合併」</div>`;
+    updateZonedDocStats();
+    return;
+  }
+
+  container.innerHTML = groups.map((g, idx) => {
+    const breakdown = buildSpecBreakdown(g.rows);
+    const expanded = zonedExpandedLabels.has(g.label);
+    const specRows = breakdown.map((b, si) => `
+      <div style="display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
+        <span style="flex: 1;">${escapeHtml(b.fullName)}${b.addonSummary ? `<span style="color: var(--text-mute); margin-left: 12px;">${escapeHtml(b.addonSummary)}</span>` : ""}</span>
+        <button class="btn btn-secondary btn-small" onclick="extractZonedSpec(${idx}, ${si})" style="flex-shrink: 0;">分單</button>
+        <span style="color: var(--text-mute); white-space: nowrap; flex-shrink: 0;">${b.qty} 件 · ${b.rows.length} 筆</span>
+      </div>
+    `).join("");
+
+    const downloadedStyle = g.downloaded
+      ? "background: var(--cat-green-bg); border-color: var(--cat-green-border);"
+      : "";
+
+    return `
+      <div class="problem-item" style="flex-direction: column; align-items: stretch; ${downloadedStyle}">
+        <div class="problem-item-row1" style="justify-content: space-between; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+            <input type="checkbox" class="zoned-checkbox zoned-group-check" data-idx="${idx}">
+            <button onclick="toggleZonedDetail(${idx})" style="background: none; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; gap: 8px; font: inherit; padding: 0; text-align: left; min-width: 0;">
+              <span id="zonedGroupArrow-${idx}" style="color: var(--accent-2); font-size: 15px; font-weight: 700; flex-shrink: 0;">${expanded ? "▾" : "▸"}</span>
+              <span class="pi-id">${escapeHtml(g.label)}</span>
+            </button>
+          </div>
+          <button class="btn btn-secondary btn-small" onclick="downloadZonedGroup(${idx})">${g.downloaded ? "✓ 已下載" : "⬇ 下載列印"}</button>
+        </div>
+        <div style="font-size: 13px; color: var(--text); font-weight: 600; margin-top: 4px; margin-left: 47px;">共 ${g.qty} 件 · ${g.rows.length} 筆訂單</div>
+        <div id="zonedGroupDetail-${idx}" ${expanded ? "" : "hidden"} style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+          <div style="display: flex; flex-direction: column;">
+            ${specRows}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+  updateZonedDocStats();
+}
+
+// 展開/收合單一品項的規格明細(不重新產生 innerHTML,不會弄丟已勾選的 checkbox);
+// 用 label 記住展開狀態,「抽出」之後重新渲染整份清單時,已經打開的面板不會被關掉
+function toggleZonedDetail(idx) {
+  const g = zonedGroupsCache[idx];
+  const el = document.getElementById(`zonedGroupDetail-${idx}`);
+  const arrow = document.getElementById(`zonedGroupArrow-${idx}`);
+  if (!el || !g) return;
+  el.hidden = !el.hidden;
+  if (arrow) arrow.textContent = el.hidden ? "▸" : "▾";
+  if (el.hidden) zonedExpandedLabels.delete(g.label);
+  else zonedExpandedLabels.add(g.label);
+}
+
+// 「其他合併」區塊:品項少的全部擠在同一張出貨單,所以只需要「一個」下載按鈕;
+// 明細用 <details> 收合,一律依完整分組(含規格)拆給使用者看,並顯示完整品項名稱,
+// 不然同一行可能混了好幾種顏色,看不出併單裡實際裝了什麼
+function renderZonedMergedBlock(mergedRows, threshold) {
+  const container = document.getElementById("zonedMergedBlock");
+  if (!container) return;
+
+  if (mergedRows.length === 0) {
+    container.innerHTML = `<div class="problem-empty">目前沒有品項被併單</div>`;
+    updateZonedDocStats();
+    return;
+  }
+
+  const detailLines = buildMergedDetailLines(mergedRows);
+  const itemLines = detailLines.map(d => `
+    <div class="problem-item-row1" style="justify-content: space-between; width: 100%;">
+      <span>${escapeHtml(d.fullName)}${d.addonSummary ? `<span style="color: var(--text-mute); margin-left: 12px;">${escapeHtml(d.addonSummary)}</span>` : ""}</span>
+      <span style="color: var(--text-mute); font-size: 12px; white-space: nowrap;">${d.qty} 件 · ${d.rows.length} 筆</span>
+    </div>
+  `).join("");
+
+  const downloadedStyle = zonedMergedDownloaded
+    ? "background: var(--cat-green-bg); border-color: var(--cat-green-border);"
+    : "";
+
+  container.innerHTML = `
+    <div class="problem-item" style="flex-direction: column; align-items: stretch; ${downloadedStyle}">
+      <div class="problem-item-row1" style="justify-content: space-between; width: 100%;">
+        <span class="pi-id">其他合併(未超過 ${threshold} 個的品項)</span>
+        <button class="btn btn-secondary btn-small" onclick="downloadZonedMerged()">${zonedMergedDownloaded ? "✓ 已下載" : "⬇ 下載列印"}</button>
+      </div>
+      <div style="font-size: 12px; color: var(--text-mute); margin-top: 4px;">
+        共 ${detailLines.length} 個品項 · ${mergedRows.length} 筆訂單
+      </div>
+      <details style="margin-top: 10px;">
+        <summary style="cursor: pointer; font-size: 12px; color: var(--accent-2);">展開明細,看併了哪些品項</summary>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+          ${itemLines}
+        </div>
+      </details>
+    </div>
+  `;
+  updateZonedDocStats();
+}
+
+// 「併單」:勾選兩個以上的獨立出單品項,合成一列新的品項(件數加總、rows 合併),
+// 跟「分單」相反 —— 分單是從一個品項裡把某個規格拉出來獨立,併單是把好幾個獨立品項揉回同一張出貨單。
+// 合併後的品名用「&」把各自的品名接起來,不然沒辦法知道這張單裡混了哪些品項。
+function mergeZonedGroups() {
+  const checks = document.querySelectorAll(".zoned-group-check:checked");
+  if (checks.length < 2) {
+    setStatus("zonedStatus", "warn", "請至少勾選 2 個品項才能併單");
+    return;
+  }
+
+  const picked = Array.from(checks).map(c => zonedGroupsCache[parseInt(c.dataset.idx, 10)]).filter(Boolean);
+  const pickedSet = new Set(picked);
+
+  const rows = picked.flatMap(g => g.rows).sort(comparePickGroupRows);
+  const qty = picked.reduce((s, g) => s + g.qty, 0);
+  const label = picked.map(g => g.label).join(" & ");
+
+  zonedGroupsCache = zonedGroupsCache.filter(g => !pickedSet.has(g));
+  zonedGroupsCache.push({ label, rows, qty });
+  zonedGroupsCache.sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label));
+
+  picked.forEach(g => zonedExpandedLabels.delete(g.label));
+  renderZonedGroupList(zonedGroupsCache);
+  setStatus("zonedStatus", "success", `✓ 已併單「${label}」,共 ${qty} 件`);
+}
+
+// 「全選」勾選框:一口氣把清單裡每一項的勾選框都打開/關掉
+function toggleZonedSelectAll(checked) {
+  document.querySelectorAll(".zoned-group-check").forEach(cb => { cb.checked = checked; });
+}
+
+// 「全部下載」:一次下載所有「打勾」的品項(不是真的不分青紅皂白全部下載,勾選框決定要下載誰;
+// 想真的全部下載就先按「全選」再按這顆)。跟 downloadZonedGroup 分開寫,
+// 是因為 downloadZonedGroup 下載完會馬上重新渲染清單,如果在迴圈裡逐一呼叫,
+// 後面幾個品項的 index 會對不上重新渲染後的清單,所以這裡先把要下載的品項都抓出來,
+// 全部寫完檔案才重新渲染一次。
+function downloadZonedSelected() {
+  const checks = document.querySelectorAll(".zoned-group-check:checked");
+  if (checks.length === 0) {
+    setStatus("zonedStatus", "warn", "請先勾選要下載的品項(或按「全選」)");
+    return;
+  }
+
+  const picked = Array.from(checks).map(c => zonedGroupsCache[parseInt(c.dataset.idx, 10)]).filter(Boolean);
+  let fileTotal = 0;
+  try {
+    picked.forEach(g => {
+      const prefix = `黑貓出貨表_${sanitizeFilenamePart(g.label)}`;
+      const { fileCount } = writeBcatFiles(g.rows, prefix);
+      fileTotal += fileCount;
+      g.downloaded = true;
+    });
+    renderZonedGroupList(zonedGroupsCache);
+    setStatus("zonedStatus", "success", `✓ 已下載 ${picked.length} 個品項,共 ${fileTotal} 個檔案`);
+  } catch (e) {
+    setStatus("zonedStatus", "error", `✗ 下載失敗:${e.message}`);
+    console.error(e);
+  }
+}
+
+// 獨立出單清單裡單一品項的下載列印按鈕(整組一起下載);下載成功後反顏色標示「已下載」,
+// 方便一眼看出這批品項哪些已經印過、哪些還沒
+function downloadZonedGroup(idx) {
+  const g = zonedGroupsCache[idx];
+  if (!g) return;
+  try {
+    const prefix = `黑貓出貨表_${sanitizeFilenamePart(g.label)}`;
+    const { fileCount } = writeBcatFiles(g.rows, prefix);
+    g.downloaded = true;
+    renderZonedGroupList(zonedGroupsCache);
+    setStatus("zonedStatus", "success", `✓ 已下載「${g.label}」共 ${g.rows.length} 筆(${fileCount} 檔)`);
+  } catch (e) {
+    setStatus("zonedStatus", "error", `✗ 下載失敗:${e.message}`);
+    console.error(e);
+  }
+}
+
+// 展開明細裡每一列規格自己的「分單」按鈕:點了直接把「這一個規格」從原本的群組拉出來,
+// 變成「獨立出單品項」清單裡新的一列(有自己的件數、下載按鈕),不用勾選、不是馬上下載檔案 ——
+// 方便先把想拆開撿貨的規格整理出來,確認整份清單長什麼樣子之後,再用各自的下載按鈕或最上面的總下載一次匯出。
+function extractZonedSpec(idx, si) {
+  const g = zonedGroupsCache[idx];
+  if (!g) return;
+
+  const breakdown = buildSpecBreakdown(g.rows);
+  const picked = breakdown[si];
+  if (!picked) return;
+
+  // 從原本的群組移除被抽出的列,件數跟著重算;內容變了,先前的「已下載」不再算數
+  const pickedRowSet = new Set(picked.rows);
+  g.rows = g.rows.filter(r => !pickedRowSet.has(r));
+  g.qty = g.rows.reduce((s, r) => s + (parseInt(r["數量"], 10) || 1), 0);
+  g.downloaded = false;
+
+  // 這個規格變成清單裡新的一列獨立出單品項
+  zonedGroupsCache.push({
+    label: picked.fullName,
+    rows: picked.rows.slice().sort(comparePickGroupRows),
+    qty: picked.qty,
+  });
+
+  // 原本的群組如果被抽光了(只剩這個規格),從清單移除,避免留下 0 件的空列
+  if (g.rows.length === 0) {
+    const pos = zonedGroupsCache.indexOf(g);
+    if (pos !== -1) zonedGroupsCache.splice(pos, 1);
+    zonedExpandedLabels.delete(g.label);
+  }
+
+  zonedGroupsCache.sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label));
+  renderZonedGroupList(zonedGroupsCache);
+  setStatus("zonedStatus", "success", `✓ 已分單「${picked.fullName}」,變成獨立出單品項`);
+}
+
+// 「其他合併」區塊唯一的下載列印按鈕:把所有未超過門檻的品項一次寫成同一張(或同一批)黑貓出貨單;
+// 下載成功後反顏色標示「已下載」
+function downloadZonedMerged() {
+  if (!zonedMergedRowsCache || zonedMergedRowsCache.length === 0) return;
+  try {
+    const { fileCount } = writeBcatFiles(zonedMergedRowsCache, "黑貓出貨表_其他合併");
+    zonedMergedDownloaded = true;
+    const { threshold } = getZonedOptions();
+    renderZonedMergedBlock(zonedMergedRowsCache, threshold);
+    setStatus("zonedStatus", "success", `✓ 已下載「其他合併」共 ${zonedMergedRowsCache.length} 筆(${fileCount} 檔)`);
+  } catch (e) {
+    setStatus("zonedStatus", "error", `✗ 下載失敗:${e.message}`);
+    console.error(e);
+  }
+}
+
+// 「▶ 下載分區黑貓出貨表」:一次下載目前清單上的每一項(獨立品項全部 + 其他合併),
+// 直接用目前的 zonedGroupsCache/zonedMergedRowsCache(如果使用者已經手動分單/併單過,
+// 這裡下載的就是調整後的結果,不會跑掉重算一份新的),下載完全部反綠標示已印,避免重複列印。
+function generateZonedOutput() {
+  if (!loadedRows) return;
+  if (zonedGroupsCache.length === 0 && zonedMergedRowsCache.length === 0) {
+    setStatus("zonedStatus", "warn", "目前沒有可下載的品項");
+    return;
+  }
+
+  setStatus("zonedStatus", "loading", "產生分區出貨表中…");
+  setTimeout(() => {
+    try {
+      let fileTotal = 0;
+      let problemHitTotal = 0;
+
+      zonedGroupsCache.forEach(g => {
+        const prefix = `黑貓出貨表_${sanitizeFilenamePart(g.label)}`;
+        const { fileCount, problemHitInExport } = writeBcatFiles(g.rows, prefix);
+        fileTotal += fileCount;
+        problemHitTotal += problemHitInExport;
+        g.downloaded = true;
+      });
+
+      if (zonedMergedRowsCache.length > 0) {
+        const { fileCount, problemHitInExport } = writeBcatFiles(zonedMergedRowsCache, "黑貓出貨表_其他合併");
+        fileTotal += fileCount;
+        problemHitTotal += problemHitInExport;
+        zonedMergedDownloaded = true;
+      }
+
+      const { threshold } = getZonedOptions();
+      renderZonedGroupList(zonedGroupsCache);
+      renderZonedMergedBlock(zonedMergedRowsCache, threshold);
+
+      let msg = `✓ 分區列印完成,共 ${fileTotal} 個檔案`;
+      if (problemHitTotal > 0) msg += `  · 🟧 ${problemHitTotal} 筆問題訂單已橘色反白`;
+      setStatus("zonedStatus", "success", msg);
+    } catch (e) {
+      setStatus("zonedStatus", "error", `✗ 分區列印失敗:${e.message}`);
       console.error(e);
     }
   }, 50);
@@ -3392,13 +4148,28 @@ document.addEventListener("keydown", (e) => {
 
 document.getElementById("returnDate").value = todayStr("-");
 
+// 兩個分頁(一般出貨表、分區列印)其實共用同一份 loadedRows,上傳一次兩邊都能用,
+// 不用分別上傳兩次 —— 這裡把兩個檔案顯示徽章一起更新,才不會讓人誤以為另一頁還沒上傳
+function setFileDisplays(filename) {
+  ["fileDisplay", "zonedFileDisplay"].forEach(id => {
+    const d = document.getElementById(id);
+    if (!d) return;
+    d.textContent = filename;
+    d.classList.remove("empty"); d.classList.add("has-file");
+  });
+}
+
 document.getElementById("fileInput").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  const d = document.getElementById("fileDisplay");
-  d.textContent = file.name;
-  d.classList.remove("empty"); d.classList.add("has-file");
+  setFileDisplays(file.name);
   handleFile(file);
+});
+document.getElementById("zonedFileInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setFileDisplays(file.name);
+  handleFile(file, "zonedStatus");
 });
 document.getElementById("lineTemplateInput").addEventListener("change", (e) => {
   const file = e.target.files[0];
