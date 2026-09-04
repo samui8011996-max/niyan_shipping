@@ -2531,6 +2531,14 @@ function sortZonedGroups(list) {
   });
 }
 
+// 這些「粗分組」不管數量多少,一律獨立出單,不會因為沒超過門檻被併入「其他合併」——
+// key 就是 pickGroupKey(row, false) 的輸出,之後有類似需求(某個品項一律要獨立列印撿貨)就加進這個清單。
+const FORCE_INDEPENDENT_GROUP_KEYS = new Set([
+  "PANGPANG|SINGLE|小|招福",  // 胖胖貓(小)招福
+  "322415648|小",             // 精油組(小)(322415648 精油貓禮盒版 + 322282246 精油貓一般版,別名合併後的 key)
+  "LASER",                    // 雷雕(不分辦公室/喵客製...等商品,見 isLaserItem)
+]);
+
 // 把 exportRows 依商品編號(或編號+規格)分組:
 //   ownGroups:數量超過門檻的品項,各自一組 { label, rows, qty }(依名稱排序)
 //   mergedGroups:沒超過門檻的品項,同樣各自一組 { label, rows, qty },但依數量由多到少排序
@@ -2547,7 +2555,7 @@ function buildPickGroups(exportRows, splitBySpec, threshold) {
   const ownGroups = [];
   const mergedGroups = [];
 
-  for (const rows of groups.values()) {
+  for (const [key, rows] of groups) {
     const qty = rows.reduce((s, r) => s + (parseInt(r["數量"], 10) || 1), 0);
     const sample = pickGroupSampleRow(rows);
     // 雷雕、胖胖貓(依尺寸)這兩組都混了不同商品/顏色/款式,用固定文字當標籤,
@@ -2558,13 +2566,16 @@ function buildPickGroups(exportRows, splitBySpec, threshold) {
     } else if (isPangpangCat(sample)) {
       const namePrefix = isPangpangPair(sample) ? "胖胖貓一對" : "胖胖貓";
       label = `${namePrefix}(${sizeGroupSuffix(sample) || "無尺寸"} ${styleGroupSuffix(sample)})`;
+    } else if (canonicalCode(sample["商品編號"]) === PRODUCT_CODES.OIL_CAT_BOX) {
+      label = `精油組(${sizeGroupSuffix(sample) || "無尺寸"})`;
     } else {
       const name = cleanProductName(sample["商品名稱"]);
       const suffixParts = groupSuffixParts(sample, splitBySpec);
       label = suffixParts.length ? `${name}(${suffixParts.join(" ")})` : name;
     }
     const entry = { rows: rows.slice().sort(comparePickGroupRows), qty, label };
-    (qty > threshold ? ownGroups : mergedGroups).push(entry);
+    const forceIndependent = FORCE_INDEPENDENT_GROUP_KEYS.has(key);
+    (qty > threshold || forceIndependent ? ownGroups : mergedGroups).push(entry);
   }
 
   ownGroups.sort((a, b) => a.label.localeCompare(b.label));
@@ -2733,10 +2744,11 @@ function renderZonedMergedBlock(mergedRows, threshold) {
   }
 
   const detailLines = buildMergedDetailLines(mergedRows);
-  const itemLines = detailLines.map(d => `
-    <div class="problem-item-row1" style="justify-content: space-between; width: 100%;">
-      <span>${escapeHtml(d.fullName)}${d.addonSummary ? `<span style="color: var(--text-mute); margin-left: 12px;">${escapeHtml(d.addonSummary)}</span>` : ""}</span>
-      <span style="color: var(--text); font-weight: 700; font-size: 13px; white-space: nowrap;">${d.qty} 件 · ${d.rows.length} 筆</span>
+  const itemLines = detailLines.map((d, di) => `
+    <div style="display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
+      <span style="flex: 1;">${escapeHtml(d.fullName)}${d.addonSummary ? `<span style="color: var(--text-mute); margin-left: 12px;">${escapeHtml(d.addonSummary)}</span>` : ""}</span>
+      <button class="btn btn-secondary btn-small" onclick="extractZonedMergedSpec(${di})" style="flex-shrink: 0;">分單</button>
+      <span style="color: var(--text); font-weight: 700; white-space: nowrap; flex-shrink: 0;">${d.qty} 件 · ${d.rows.length} 筆</span>
     </div>
   `).join("");
 
@@ -2755,7 +2767,7 @@ function renderZonedMergedBlock(mergedRows, threshold) {
       </div>
       <details style="margin-top: 10px;">
         <summary style="cursor: pointer; font-size: 12px; color: var(--accent-2);">展開明細,看併了哪些品項</summary>
-        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+        <div style="display: flex; flex-direction: column; margin-top: 8px;">
           ${itemLines}
         </div>
       </details>
@@ -2872,8 +2884,33 @@ function extractZonedSpec(idx, si) {
     zonedExpandedLabels.delete(g.label);
   }
 
-  zonedGroupsCache.sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label));
+  sortZonedGroups(zonedGroupsCache);
   renderZonedGroupList(zonedGroupsCache);
+  setStatus("zonedStatus", "success", `✓ 已分單「${picked.fullName}」,變成獨立出單品項`);
+}
+
+// 「其他合併」展開明細裡每一列自己的「分單」按鈕:跟 extractZonedSpec 邏輯一樣,
+// 只是來源是 zonedMergedRowsCache(攤平的併單清單)不是某個群組的 rows —— 把這個規格從併單裡拉出來,
+// 變成「獨立出單品項」清單裡新的一列,原本併單的品項少一項之後,兩邊清單都要重畫。
+function extractZonedMergedSpec(di) {
+  const detailLines = buildMergedDetailLines(zonedMergedRowsCache);
+  const picked = detailLines[di];
+  if (!picked) return;
+
+  const pickedRowSet = new Set(picked.rows);
+  zonedMergedRowsCache = zonedMergedRowsCache.filter(r => !pickedRowSet.has(r));
+  zonedMergedDownloaded = false; // 併單內容變了,先前的「已下載」不再算數
+
+  zonedGroupsCache.push({
+    label: picked.fullName,
+    rows: picked.rows.slice().sort(comparePickGroupRows),
+    qty: picked.qty,
+  });
+  sortZonedGroups(zonedGroupsCache);
+
+  const { threshold } = getZonedOptions();
+  renderZonedGroupList(zonedGroupsCache);
+  renderZonedMergedBlock(zonedMergedRowsCache, threshold);
   setStatus("zonedStatus", "success", `✓ 已分單「${picked.fullName}」,變成獨立出單品項`);
 }
 
