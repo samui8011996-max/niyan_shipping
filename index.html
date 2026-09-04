@@ -1583,6 +1583,7 @@ const REMOVE_PATTERNS = [
 const REPLACE_PATTERNS = [
   ["胖胖招財招福貓", "胖胖貓"],
   ["胖胖金運招福貓", "胖胖貓"],
+  ["胖胖招財貓", "胖胖貓"],  // 少數訂單漏打「招福」兩字,補這個變體才會被辨識成胖胖貓,不然會被誤判成完全不同的商品
   ["【萬馬奔騰，馬上有錢】", "【馬貓】"],
   ["辦公室療癒首選", "辦公室語錄"],
   ["辦公室發財語錄", "辦公室語錄"],
@@ -2462,32 +2463,30 @@ function addonSummaryLine(rows) {
 function buildFineBreakdown(rows) {
   const map = new Map();
   rows.forEach(row => {
-    const groupKey = pickGroupKey(row, false);
-    const key = `${groupKey}::${breakdownLabel(row)}`;
-    if (!map.has(key)) map.set(key, { groupKey, rows: [] });
-    map.get(key).rows.push(row);
+    // 分組(哪些列算同一行)用細的 pickGroupKey,不同顏色/規格還是各自一行;
+    // 排序用的粗分組(family)另外算,見下面 —— 兩者用途不同,不能共用同一把 key
+    const key = `${pickGroupKey(row, false)}::${breakdownLabel(row)}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
   });
 
-  const entries = Array.from(map.values()).map(({ groupKey, rows: groupRows }) => ({
+  const entries = Array.from(map.values()).map(groupRows => ({
     rows: groupRows,
-    groupKey,
+    familyKey: pickGroupFamilyKey(groupRows[0]),
     qty: groupRows.reduce((s, r) => s + (parseInt(r["數量"], 10) || 1), 0),
     fullName: breakdownLabel(groupRows[0]),
     // 分組時已經把加購濾掉了,靠這行補回加購資訊(彙總各種加購選項的件數),不限胖胖貓,全品項都適用
     addonSummary: addonSummaryLine(groupRows),
   }));
 
-  // 同一個粗分組(例如消波塊禮盒版+一般版合併後,是同一個 pickGroupKey)的規格明細要排在一起,
-  // 不能單純照件數排,不然會被打散到清單各處、看不出是同一個商品。
-  // 組跟組之間仍照「這組的件數總和」由多到少排(大宗品項排前面),組內再照件數排序。
-  const groupTotals = new Map();
-  entries.forEach(e => groupTotals.set(e.groupKey, (groupTotals.get(e.groupKey) || 0) + e.qty));
+  // 同一個粗分組(family,例如胖胖貓同尺寸不管金運/招福,或消波塊禮盒版+一般版合併後同一個 pickGroupKey)
+  // 的規格明細要排在一起,不能單純照件數排,不然會被打散到清單各處、看不出是同一個商品。
+  // 胖胖貓家族之間優先照尺寸小→中→大排,其他組跟組之間仍照「這組的件數總和」由多到少排,組內再照件數排序。
+  const familyTotals = new Map();
+  entries.forEach(e => familyTotals.set(e.familyKey, (familyTotals.get(e.familyKey) || 0) + e.qty));
 
   return entries.sort((a, b) => {
-    if (a.groupKey !== b.groupKey) {
-      const totalDiff = groupTotals.get(b.groupKey) - groupTotals.get(a.groupKey);
-      return totalDiff !== 0 ? totalDiff : a.groupKey.localeCompare(b.groupKey);
-    }
+    if (a.familyKey !== b.familyKey) return compareFamilies(a.familyKey, b.familyKey, familyTotals);
     return b.qty - a.qty || a.fullName.localeCompare(b.fullName);
   });
 }
@@ -2503,18 +2502,39 @@ function buildMergedDetailLines(mergedRows) {
   return buildFineBreakdown(mergedRows);
 }
 
-// 「獨立出單品項」清單排序用的粗分組 key:胖胖貓同一個尺寸會因為金運/招福拆成兩三個獨立品項,
-// 這幾個要排在一起,不能被件數打散;其他品項沒有這種「同尺寸不同款式」的情況,各自用自己的標籤當 key 就好。
-function zonedGroupFamilyKey(g) {
-  const sample = g.rows[0];
-  if (sample && isPangpangCat(sample)) {
-    return `PANGPANG|${isPangpangPair(sample) ? "PAIR" : "SINGLE"}|${sizeGroupSuffix(sample) || "無尺寸"}`;
+// 排序/分群用的「粗分組」key,比 pickGroupKey 更寬鬆:胖胖貓不管金運/招福、單隻/一對,
+// 只要同尺寸就算同一家族,排序/展開明細才會看到「同尺寸的都排在一起」,不會被款式或單隻/一對拆散。
+// 注意:這只影響排序跟「哪些行放在一起顯示」,實際分行(pickGroupKey)還是有分單隻/一對,
+// 出貨單不會把它們的件數混算成同一行。展開明細清單(其他合併、獨立品項規格拆分)
+// 跟頂層「獨立出單品項」清單排序都共用這個。
+function pickGroupFamilyKey(row) {
+  if (isPangpangCat(row)) {
+    return `PANGPANG|${sizeGroupSuffix(row) || "無尺寸"}`;
   }
-  return g.label;
+  return pickGroupKey(row, false);
+}
+
+function zonedGroupFamilyKey(g) {
+  return pickGroupFamilyKey(g.rows[0]);
+}
+
+// 家族跟家族之間的排序:如果兩邊都是胖胖貓家族,不管件數多少,一律優先照尺寸小→中→大排,
+// 因為使用者要看的是「同尺寸的放一起」,不是「件數多的放前面」;
+// 其他情況(非胖胖貓、或胖胖貓跟其他品項比較)還是照「這個家族的件數總和」由多到少排。
+function compareFamilies(fa, fb, familyTotals) {
+  const SIZE_RANK = { "小": 0, "中": 1, "大": 2 };
+  const ma = /^PANGPANG\|(.+)$/.exec(fa);
+  const mb = /^PANGPANG\|(.+)$/.exec(fb);
+  if (ma && mb) {
+    const sa = SIZE_RANK[ma[1]] ?? 99, sb = SIZE_RANK[mb[1]] ?? 99;
+    return sa - sb;
+  }
+  const diff = familyTotals.get(fb) - familyTotals.get(fa);
+  return diff !== 0 ? diff : fa.localeCompare(fb);
 }
 
 // 「獨立出單品項」清單排序:同一個粗分組(例如胖胖貓同尺寸的金運/招福)排在一起,不會被拆散到清單各處;
-// 組跟組之間依「這組件數總和」由多到少排(大宗品項排前面),組內再依件數排序。
+// 胖胖貓家族之間優先照尺寸小→中→大排,其他組跟組之間依「這組件數總和」由多到少排,組內再依件數排序。
 function sortZonedGroups(list) {
   const familyTotals = new Map();
   list.forEach(g => {
@@ -2523,10 +2543,7 @@ function sortZonedGroups(list) {
   });
   return list.sort((a, b) => {
     const fa = zonedGroupFamilyKey(a), fb = zonedGroupFamilyKey(b);
-    if (fa !== fb) {
-      const diff = familyTotals.get(fb) - familyTotals.get(fa);
-      return diff !== 0 ? diff : fa.localeCompare(fb);
-    }
+    if (fa !== fb) return compareFamilies(fa, fb, familyTotals);
     return b.qty - a.qty || a.label.localeCompare(b.label);
   });
 }
