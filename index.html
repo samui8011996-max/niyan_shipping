@@ -1829,6 +1829,17 @@ function computeStats(rows) {
   return { regular, counts, total: rows.length, bear, flowerCombos, plant, plantOrders, offshore };
 }
 
+// 一般文字清理:套用跟商品名稱一樣的 REPLACE/REMOVE/REMOVE_REGEX 規則,拿掉「不加購」「限定登場｜」
+// 這類雜訊,但不像 cleanProductName 會把尺寸也拿掉 —— 純粹給「未配對訂單」這種顯示原始商品明細
+// 用的欄位清一清,不是拿去當分組 key。
+function cleanFreeText(text) {
+  let s = String(text ?? "");
+  for (const [find, repl] of REPLACE_PATTERNS) s = s.split(find).join(repl);
+  for (const pat of REMOVE_PATTERNS) s = s.split(pat).join("");
+  for (const re of REMOVE_REGEX_PATTERNS) s = s.replace(re, "");
+  return s.replace(/\s+/g, " ").trim();
+}
+
 // 取「乾淨的品項名」作為排序鍵 → 同品項一定排一起
 // 例如「【泥研製所||辦公室小物】胖胖招財招福貓 (小)」和「【辦公室小物】胖胖招財招福貓 (小)」
 // 經過 REMOVE_PATTERNS 清理後會變成同字串,就能合併
@@ -3406,6 +3417,7 @@ async function handleLineTemplate(file) {
     const orderIdCol = headers.findIndex(h => String(h).trim() === "訂單編號");
     const carrierCol = headers.findIndex(h => String(h).includes("貨運業者代碼"));
     const trackingCol = headers.findIndex(h => String(h).includes("物流單編號"));
+    const productCol = headers.findIndex(h => String(h).includes("商品明細"));
 
     if (orderIdCol < 0) throw new Error("找不到「訂單編號」欄位");
     if (carrierCol < 0) throw new Error("找不到「貨運業者代碼」欄位");
@@ -3415,7 +3427,8 @@ async function handleLineTemplate(file) {
     for (let i = 1; i < aoa.length; i++) {
       const oid = String(aoa[i][orderIdCol] ?? "").trim();
       if (!oid) continue;
-      orders.push({ rowIdx: i, orderId: oid });
+      const product = productCol >= 0 ? String(aoa[i][productCol] ?? "").trim() : "";
+      orders.push({ rowIdx: i, orderId: oid, product });
     }
 
     lineTemplateData = { wb, sheetName, orders, carrierCol, trackingCol };
@@ -3522,12 +3535,14 @@ function renderUnmatchedSection() {
   list.innerHTML = lastUnmatchedOrders.map(o => {
     const safeId = escapeHtml(o.orderId);
     const checked = unmatchedDeleteSet.has(o.orderId) ? "checked" : "";
+    const product = cleanFreeText(o.product);
     return `
       <div class="problem-item">
         <div class="problem-item-main">
           <div class="problem-item-row1">
             <span class="pi-id">${safeId}</span>
           </div>
+          ${product ? `<div class="pi-note">${escapeHtml(product)}</div>` : ""}
         </div>
         <label class="pi-delete-check">
           <input type="checkbox" data-order-id="${safeId}" ${checked} onchange="onUnmatchedCheckChange(this)">
