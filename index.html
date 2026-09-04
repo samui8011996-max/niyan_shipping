@@ -2774,8 +2774,8 @@ function renderZonedMergedBlock(mergedRows, threshold) {
   const detailLines = buildMergedDetailLines(mergedRows);
   const itemLines = detailLines.map((d, di) => `
     <div style="display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;">
+      <input type="checkbox" class="zoned-checkbox zoned-merged-check" data-di="${di}" style="flex-shrink: 0;">
       <span style="flex: 1;">${escapeHtml(d.fullName)}${d.addonSummary ? `<span style="color: var(--text-mute); margin-left: 12px;">${escapeHtml(d.addonSummary)}</span>` : ""}</span>
-      <button class="btn btn-secondary btn-small" onclick="extractZonedMergedSpec(${di})" style="flex-shrink: 0;">分單</button>
       <span style="color: var(--text); font-weight: 700; white-space: nowrap; flex-shrink: 0;">${d.qty} 件 · ${d.rows.length} 筆</span>
     </div>
   `).join("");
@@ -2795,7 +2795,10 @@ function renderZonedMergedBlock(mergedRows, threshold) {
       </div>
       <details style="margin-top: 10px;">
         <summary style="cursor: pointer; font-size: 12px; color: var(--accent-2);">展開明細,看併了哪些品項</summary>
-        <div style="display: flex; flex-direction: column; margin-top: 8px;">
+        <div style="display: flex; justify-content: flex-end; margin: 8px 0 0;">
+          <button onclick="extractZonedMergedSelected()" style="background: none; border: none; cursor: pointer; padding: 4px 2px; font-size: 16px; font-weight: 700; color: var(--accent-2);">分單</button>
+        </div>
+        <div style="display: flex; flex-direction: column;">
           ${itemLines}
         </div>
       </details>
@@ -2917,29 +2920,35 @@ function extractZonedSpec(idx, si) {
   setStatus("zonedStatus", "success", `✓ 已分單「${picked.fullName}」,變成獨立出單品項`);
 }
 
-// 「其他合併」展開明細裡每一列自己的「分單」按鈕:跟 extractZonedSpec 邏輯一樣,
-// 只是來源是 zonedMergedRowsCache(攤平的併單清單)不是某個群組的 rows —— 把這個規格從併單裡拉出來,
-// 變成「獨立出單品項」清單裡新的一列,原本併單的品項少一項之後,兩邊清單都要重畫。
-function extractZonedMergedSpec(di) {
-  const detailLines = buildMergedDetailLines(zonedMergedRowsCache);
-  const picked = detailLines[di];
-  if (!picked) return;
+// 「其他合併」展開明細裡勾選特定品項後按「分單」:把勾選的全部品項一起從併單裡拉出來,
+// 揉成「一個」新的獨立出單品項(品名用「&」把各自的品名接起來),不是各自拆成一堆單獨的品項 ——
+// 這幾個原本就是「數量太少不值得單獨出一張」才被併在一起,分單時也應該繼續合在同一張,
+// 只是從「其他合併」搬去「獨立出單品項」清單,單獨變成一份可以下載的黑貓出貨單。
+function extractZonedMergedSelected() {
+  const checks = document.querySelectorAll(".zoned-merged-check:checked");
+  if (checks.length === 0) {
+    setStatus("zonedStatus", "warn", "請先勾選要分單的品項");
+    return;
+  }
 
-  const pickedRowSet = new Set(picked.rows);
+  const detailLines = buildMergedDetailLines(zonedMergedRowsCache);
+  const picked = Array.from(checks).map(c => detailLines[parseInt(c.dataset.di, 10)]).filter(Boolean);
+  const pickedRowSet = new Set(picked.flatMap(p => p.rows));
+
   zonedMergedRowsCache = zonedMergedRowsCache.filter(r => !pickedRowSet.has(r));
   zonedMergedDownloaded = false; // 併單內容變了,先前的「已下載」不再算數
 
-  zonedGroupsCache.push({
-    label: picked.fullName,
-    rows: picked.rows.slice().sort(comparePickGroupRows),
-    qty: picked.qty,
-  });
+  const rows = picked.flatMap(p => p.rows).sort(comparePickGroupRows);
+  const qty = picked.reduce((s, p) => s + p.qty, 0);
+  const label = picked.map(p => p.fullName).join(" & ");
+
+  zonedGroupsCache.push({ label, rows, qty });
   sortZonedGroups(zonedGroupsCache);
 
   const { threshold } = getZonedOptions();
   renderZonedGroupList(zonedGroupsCache);
   renderZonedMergedBlock(zonedMergedRowsCache, threshold);
-  setStatus("zonedStatus", "success", `✓ 已分單「${picked.fullName}」,變成獨立出單品項`);
+  setStatus("zonedStatus", "success", `✓ 已分單「${label}」,共 ${qty} 件,變成獨立出單品項`);
 }
 
 // 「其他合併」區塊唯一的下載列印按鈕:把所有未超過門檻的品項一次寫成同一張(或同一批)黑貓出貨單;
