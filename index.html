@@ -908,6 +908,23 @@
     cursor: pointer;
   }
 
+  .pi-accept-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--cat-green-num);
+    user-select: none;
+  }
+  .pi-accept-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--cat-green-num);
+    cursor: pointer;
+  }
+
   /* 自訂樣式的方形勾選框(取代瀏覽器原生的白色方框),分區列印的品項/併單勾選都用這個 */
   .zoned-checkbox {
     appearance: none;
@@ -1166,6 +1183,23 @@
           <div><span id="stat-unmatched" class="stat-number">—</span><span class="stat-unit">筆</span></div>
           <div class="stat-sub">黑貓明細表找不到</div>
         </div>
+      </div>
+
+      <div id="conflictSection" style="display: none; margin-top: 24px;">
+        <div class="stats-header">
+          <span class="stats-title">⚠ 配對衝突(需人工確認,預設不會自動填入)</span>
+          <span id="conflictHint" class="stats-hint"></span>
+        </div>
+        <p style="color: var(--text-dim); font-size: 12px; margin-bottom: 10px; line-height: 1.7;">
+          這些訂單的黑貓明細資料本身有疑慮,或跟上一次配對紀錄不一致(例如黑貓明細表事後被更新過)。
+          系統不會自動幫你填號碼,避免貼錯——勾選「確認採用這次的號碼」才會寫入,勾選「匯出時刪除」則排除,兩者都不勾就維持空白紅字排在最下面。
+        </p>
+        <div class="actions" style="margin-bottom: 10px; margin-top: 0;">
+          <button class="btn btn-ghost btn-small" onclick="toggleAllConflicts('accept')">全選確認採用</button>
+          <button class="btn btn-ghost btn-small" onclick="toggleAllConflicts('delete')">全選刪除</button>
+          <button class="btn btn-ghost btn-small" onclick="toggleAllConflicts('reset')">全部保留待確認</button>
+        </div>
+        <div id="conflictList" class="problem-list"></div>
       </div>
 
       <div id="unmatchedSection" style="display: none; margin-top: 24px;">
