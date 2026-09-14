@@ -72,7 +72,7 @@ function filterReturnsToOpen() {
 // 設定
 // ===================================================================
 // Apps Script 網址寫死,不再開放使用者設定/儲存
-const GS_URL = "https://script.google.com/macros/s/AKfycbyhkiaQaoMSFlHDEDcdA6iosXdkaX3EqlHxKpDMrKVEQnU1B9vADyZzcVIuGoQg3VI/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbw1YbTax8HSrarJR3OUvbfHl1Xcj7EDE58tmO9MaDq3oEZ_i0Hi0x_8WuTTMc-McS9Z/exec";
 
 function openSettings() {
   for (const cat of Object.keys(SHEET_URL_KEYS)) {
@@ -225,8 +225,9 @@ if (totalCount === 0) {
   const count = lastStats.regular;
   if (count <= 0) return;
   const today = todayStr("-");
-  const btn = document.getElementById("uploadLineBtn");
+  const btn = document.getElementById("uploadBtn");
   if (btn) { btn.disabled = true; }
+  setStatus("status", "loading", "上傳中(Line禮物)…");
 
   fetch(url, {
     method: "POST",
