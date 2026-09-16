@@ -106,7 +106,7 @@ const RETURN_BLOCKS = {
 // 包貨系統那邊重新部署(取得新的 /exec 網址)時,這裡也要跟著更新,否則
 // UrlFetchApp.fetch 會拿到 Google 的 404 HTML 錯誤頁,後面 JSON.parse 就會丟出
 // "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" 這種例外。
-const PACKING_API_URL = "https://script.google.com/macros/s/AKfycbzSWZOSlhEO62N4sRmM8QWvRKQQRnyNaT-548oxI5KDLOFo5JZDkGu-Q6R2VluxauQ1/exec";
+const PACKING_API_URL = "https://niyan-packing-pages.pages.dev/api";
 const PACKING_SYNC_PLATFORM = "離島•郵局";
 const PACKING_SYNC_LOGI = "郵局";
 
@@ -199,6 +199,9 @@ function handleAppend(body) {
 // 同步離島這批件數到包貨系統:當天已有「離島•郵局」平台紀錄就累加合併,沒有就新增一筆
 // (不能每次都直接新增,不然同一天上傳多次,包貨系統看板上的「離島•郵局」卡只會顯示
 //  最後一次上傳的數字,不是當天累計 —— 統計卡的綠色郵局總數雖然還是對的,但卡片數字會誤導人)
+// 用 upsertPlatform 一次呼叫做完查詢+寫入(包貨系統那邊只讀平台單這張表),
+// 不再像舊版那樣自己先 readAll 整個包貨系統(連訂單/進度/報廢都讀進來)再另外呼叫一次
+// add/update ——原本要兩次跨專案 Apps Script 呼叫,現在一次搞定,上傳明顯變快。
 function syncOffshoreToPacking(rows) {
   const qty = rows.reduce((s, r) => s + (parseInt(r.qty, 10) || 1), 0);
   if (qty <= 0) return { ok: true, skipped: true };
@@ -206,36 +209,11 @@ function syncOffshoreToPacking(rows) {
   const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
 
   try {
-    const readRes = callPackingApi("readAll", {});
-    if (!readRes.ok) return readRes;
-
-    const platforms = (readRes.data && readRes.data.platforms) || [];
-    const existing = platforms.find(p =>
-      String(p["平台"]) === PACKING_SYNC_PLATFORM &&
-      String(p["日期"]).slice(0, 10) === today
-    );
-
-    if (existing) {
-      const prevDetail = Array.isArray(existing["明細"]) ? existing["明細"] : [];
-      const prevPost = prevDetail.find(d => d.物流 === PACKING_SYNC_LOGI);
-      const newQty = (prevPost ? Number(prevPost.件數) || 0 : 0) + qty;
-      const newDetail = prevDetail.filter(d => d.物流 !== PACKING_SYNC_LOGI);
-      newDetail.push({ 物流: PACKING_SYNC_LOGI, 件數: newQty });
-      const newTotal = newDetail.reduce((s, d) => s + (Number(d.件數) || 0), 0);
-      return callPackingApi("updatePlatform", {
-        id: existing.id,
-        "明細": newDetail,
-        "總件數": newTotal,
-        "備註": "",
-      });
-    }
-
-    return callPackingApi("addPlatform", {
+    return callPackingApi("upsertPlatform", {
       "日期": today,
       "平台": PACKING_SYNC_PLATFORM,
-      "明細": [{ 物流: PACKING_SYNC_LOGI, 件數: qty }],
-      "總件數": qty,
-      "備註": "",
+      "物流": PACKING_SYNC_LOGI,
+      "件數": qty,
     });
   } catch (err) {
     return { ok: false, error: err.toString() };
@@ -270,42 +248,18 @@ function handleUploadLineRegular(body) {
   if (count <= 0) return jsonResponse({ ok: true, updated: false, total: 0, skipped: true });
 
   try {
-    const readRes = callPackingApi("readAll", {});
-    if (!readRes.ok) return jsonResponse({ ok: false, error: readRes.error || "讀取包貨系統失敗" });
-
-    const platforms = (readRes.data && readRes.data.platforms) || [];
-    const existing = platforms.find(p =>
-      String(p["平台"]) === LINE_REGULAR_PLATFORM &&
-      String(p["日期"]).slice(0, 10) === date
-    );
-
-    if (existing) {
-      const prevDetail = Array.isArray(existing["明細"]) ? existing["明細"] : [];
-      const prevPost = prevDetail.find(d => d.物流 === LINE_REGULAR_LOGI);
-      const newQty = (prevPost ? Number(prevPost.件數) || 0 : 0) + count;
-      const newDetail = prevDetail.filter(d => d.物流 !== LINE_REGULAR_LOGI);
-      newDetail.push({ 物流: LINE_REGULAR_LOGI, 件數: newQty });
-      const newTotal = newDetail.reduce((s, d) => s + (Number(d.件數) || 0), 0);
-
-      const res = callPackingApi("updatePlatform", {
-        id: existing.id,
-        "明細": newDetail,
-        "總件數": newTotal,
-        "備註": "",
-      });
-      if (!res.ok) return jsonResponse({ ok: false, error: res.error || "更新包貨系統失敗" });
-      return jsonResponse({ ok: true, updated: true, total: newTotal });
-    }
-
-    const res = callPackingApi("addPlatform", {
+    // 一次呼叫做完「查詢今天有沒有這筆平台紀錄+累加或新增」,不再像舊版那樣
+    // 先呼叫 readAll 讀整個包貨系統(訂單/進度/平台/報廢/設定全部讀出來)才能判斷,
+    // 再另外呼叫一次 add/update ——省掉一次跨專案 Apps Script 往返,上傳明顯變快。
+    const res = callPackingApi("upsertPlatform", {
       "日期": date,
       "平台": LINE_REGULAR_PLATFORM,
-      "明細": [{ 物流: LINE_REGULAR_LOGI, 件數: count }],
-      "總件數": count,
-      "備註": "",
+      "物流": LINE_REGULAR_LOGI,
+      "件數": count,
     });
-    if (!res.ok) return jsonResponse({ ok: false, error: res.error || "新增包貨系統紀錄失敗" });
-    return jsonResponse({ ok: true, updated: false, total: count });
+    if (!res.ok) return jsonResponse({ ok: false, error: res.error || "同步包貨系統失敗" });
+    const d = res.data || {};
+    return jsonResponse({ ok: true, updated: !!d.updated, total: d.total || 0 });
   } catch (err) {
     return jsonResponse({ ok: false, error: err.toString() });
   }
